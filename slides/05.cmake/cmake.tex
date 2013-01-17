@@ -1,0 +1,88 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{rotating}
+\usepackage{graphicx}
+\usepackage{multimedia}
+\usepackage{listings}
+
+\useinnertheme[shadow=true]{rounded}
+\useoutertheme{shadow}
+\usecolortheme{orchid}
+\usecolortheme{whale}
+
+\mode<presentation>
+
+\newcommand{\dif}{\, \mathrm{d}}
+\newcommand{\diff}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\partdiff}[2]{\frac{\partial #1}{\partial #2}}
+
+
+\title{TMA4280 - Introduction to supercomputing}
+\subtitle{CMake usage}
+\author{Arne Morten Kvarving}
+\institute{NTNU and SINTEF ICT}
+\date{January 2012}
+
+\begin{document}
+
+\maketitle
+\begin{frame}\frametitle{Building a program}
+  \begin{itemize}
+    \item Building a program by manually writing the compiler commands is only feasible for small programs.
+    \item Even with only a couple of source files, this is tedious.
+    \item On unix, this is usually solved using Makefiles.
+    \lstinputlisting{test/Makefile.handwritten}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{However..}
+  \begin{itemize}
+    \item Make does not take care of build dependencies, that is locating required libraries etc.
+    \item Make does not take care of setting up compiler flags. These are often machine specific, thus 
+          hardcoding them is not a good idea.
+    \item But of course there exists tools to handle this.
+    \item Traditionally: GNU autotools has been used a lot.
+    \item Very powerful, very confusing, steep learning curve.
+    \item Hello CMake
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{CMake}
+  \begin{itemize}
+    \item CMake is a simpler framework, but often it does the job.
+    \item The C stands for 'cross platform', so the idea is that
+          you generate build systems for the different platform based on a common script.
+    \item CMake can generate Makefiles for unix, xcode projects for OSX and 
+           .vcxproj files for visual studio.
+    \item Simplifies cross platform development since you do not have to manually maintain build systems.
+    \item A very handy feature on unix: Out of tree builds.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Anatomy of a CMake script}
+\lstinputlisting{test/CMakeLists.txt}
+\end{frame}
+\begin{frame}\frametitle{Handling extra compiler flags}
+\lstinputlisting{test/CMakeLists-openmp.txt}
+\end{frame}
+\begin{frame}\frametitle{Optional flags}
+\lstinputlisting{test/CMakeLists-openmpopt.txt}
+\end{frame}
+\begin{frame}\frametitle{Globbing}
+\lstinputlisting{test/CMakeLists-globbing.txt}
+\end{frame}
+\begin{frame}\frametitle{Out of tree builds}
+\begin{itemize}
+  \item Often, it is useful to have several configurations of a program easily available.
+  \item Examples of this can be with and without optimizations, with and without OpenMP etc.
+  \item CMake makes this very easy, as you can do out-of-tree builds.
+  \item This is achieved by
+    \lstinputlisting{test/oot.sh}
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Forcing the compilers}
+\begin{itemize}
+  \item The default compilers on vilje is the GNU compilers.
+  \item Since it is a Intel machine, we should use the Intel compilers for maximum performance.
+  \item This can be achieved by
+  \lstinputlisting{test/forcecompilers.sh}
+\end{itemize}
+\end{frame}
+\end{document}

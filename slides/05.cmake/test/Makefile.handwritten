@@ -1,0 +1,9 @@
+SRCS := test.c
+OBJS := $(filter %.o,${SRCS:.c=.o})
+.c.o:
+	$(CC) $(CFLAGS) -c $< -o $@
+all: test
+test: $(OBJS)
+	$(CC) ${CFLAGS} -o test ${OBJS}
+clean:
+	rm $(OBJS) test
