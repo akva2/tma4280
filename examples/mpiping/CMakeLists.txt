@@ -29,11 +29,16 @@ SET(DEPLIBS ${DEPLIBS} ${MPI_LIBRARIES})
 # Send the include directories to the compiler
 INCLUDE_DIRECTORIES(${INCLUDES})
 
-# List of source files our programs consists of
-SET(SRCS mpiping.c)
+# Add a program consisting of these sources
+ADD_EXECUTABLE(mpiping mpiping.c)
 
 # Add a program consisting of these sources
-ADD_EXECUTABLE(mpiping ${SRCS})
+ADD_EXECUTABLE(mpiping-individual mpiping-individual.c)
+
+# Add a program consisting of these sources
+ADD_EXECUTABLE(mpiping-collective mpiping-collective.c)
 
 # Tell linker to link against the MPI libraries
 TARGET_LINK_LIBRARIES(mpiping ${DEPLIBS})
+TARGET_LINK_LIBRARIES(mpiping-individual ${DEPLIBS})
+TARGET_LINK_LIBRARIES(mpiping-collective ${DEPLIBS})
