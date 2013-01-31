@@ -1,0 +1,5 @@
+!OMP DO SCHEDULE(STATIC)
+DO i = 1,100
+  call DoSomething(i)
+END DO
+!OMP END DO
