@@ -60,14 +60,14 @@ int main(int argc, char** argv)
 
   double** A = createMatrix(N,N);
   // identity matrix
-  for (int i=0;i<K;++i)
+  for (int i=0;i<N;++i)
     A[i][i] = 1.0;
 
-  double** v = createMatrix(K,N);
+  double** v = createMatrix(N,K);
   // fill with row number
   for (int i=0;i<K;++i)
     for (int j=0;j<N;++j)
-      v[j][i] = i;
+      v[i][j] = i;
 
   double sum = dosum(A,v,K,N);
   printf("sum: %f\n", sum);

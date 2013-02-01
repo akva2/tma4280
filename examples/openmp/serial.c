@@ -7,10 +7,10 @@ double** createMatrix(int n1, int n2)
 {
   int i;
   double **a;
-  a    = (double **)calloc(n1   ,sizeof(double *));
+  a    = (double **)calloc(n2   ,sizeof(double *));
   a[0] = (double  *)calloc(n1*n2,sizeof(double));
-  for (i=1; i < n1; i++)
-    a[i] = a[i-1] + n2;
+  for (i=1; i < n2; i++)
+    a[i] = a[i-1] + n1;
 
   return (a);
 }
@@ -59,14 +59,14 @@ int main(int argc, char** argv)
 
   double** A = createMatrix(N,N);
   // identity matrix
-  for (int i=0;i<K;++i)
+  for (int i=0;i<N;++i)
     A[i][i] = 1.0;
 
-  double** v = createMatrix(K,N);
-  // fill with row number
+  double** v = createMatrix(N,K);
+  // fill with column number
   for (int i=0;i<K;++i)
     for (int j=0;j<N;++j)
-      v[j][i] = i;
+      v[i][j] = i;
 
   double sum = dosum(A,v,K,N);
 
