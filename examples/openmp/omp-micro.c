@@ -1,22 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// allocate a n1xn2 matrix in fortran format
-// note that reversed index order is assumed
-double** createMatrix(int n1, int n2)
-{
-  int i;
-  double **a;
-  a    = (double **)calloc(n2   ,sizeof(double *));
-  a[0] = (double  *)calloc(n1*n2,sizeof(double));
-  for (i=1; i < n2; i++)
-    a[i] = a[i-1] + n1;
-
-  return (a);
-}
+#include "common.h"
 
 // perform a matrix-vector product
-void MxV(double* u, double** A, double* v, int N)
+void myMxV(double* u, double** A, double* v, int N)
 {
 #pragma omp parallel for schedule(static)
   for( int i=0;i<N;++i) {
@@ -27,7 +15,7 @@ void MxV(double* u, double** A, double* v, int N)
 }
 
 // perform an innerproduct
-double innerproduct(double* u, double* v, int N)
+double myinnerproduct(double* u, double* v, int N)
 {
   double result=0;
 #pragma omp parallel for schedule(static) reduction(+:result)
@@ -43,8 +31,8 @@ double dosum(double** A, double** v, int K, int N)
   double alpha=0;
   double temp[N];
   for( int i=0;i<K;++i ) {
-    MxV(temp,A,v[i],N);
-    alpha += innerproduct(temp,v[i],N);
+    myMxV(temp,A,v[i],N);
+    alpha += myinnerproduct(temp,v[i],N);
   }
 
   return alpha;
