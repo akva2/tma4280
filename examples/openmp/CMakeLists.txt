@@ -1,5 +1,5 @@
 # Name of our project
-PROJECT(DotProduct)
+PROJECT(OpenMP)
 
 # Tell cmake which version we require - 2.6 is enough for us
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
@@ -42,36 +42,25 @@ INCLUDE_DIRECTORIES(${INCLUDES})
 # Add a library with common sources
 ADD_LIBRARY(common common.c)
 
-# Add a program consisting of these sources
-ADD_EXECUTABLE(serial serial.c)
-TARGET_LINK_LIBRARIES(serial common ${DEPLIBS})
+# Macro for recording targets
+MACRO(ADD_APP APP SOURCES)
+  ADD_EXECUTABLE(${APP} ${SOURCES})
+  TARGET_LINK_LIBRARIES(${APP} common ${DEPLIBS})
+  SET(all-bin "${all-bin} ${APP}")
+ENDMACRO(ADD_APP)
 
 # Add a program consisting of these sources
-ADD_EXECUTABLE(serial-blas serial-blas.c)
-TARGET_LINK_LIBRARIES(serial-blas common ${DEPLIBS})
+ADD_APP(serial serial.c)
+ADD_APP(serial-blas serial-blas.c)
+ADD_APP(serial-blas-l3 serial-blas-l3.c)
+ADD_APP(omp-micro omp-micro.c)
+ADD_APP(omp-macro omp-macro.c)
 
-# Add a program consisting of these sources
-ADD_EXECUTABLE(serial-blas-l3 serial-blas-l3.c)
-TARGET_LINK_LIBRARIES(serial-blas-l3 common ${DEPLIBS})
-
-# Add a program consisting of these sources
-ADD_EXECUTABLE(omp-micro omp-micro.c)
-TARGET_LINK_LIBRARIES(omp-micro common ${DEPLIBS})
-
-# Add a program consisting of these sources
-ADD_EXECUTABLE(omp-macro omp-macro.c)
-TARGET_LINK_LIBRARIES(omp-macro common ${DEPLIBS})
-
-# Add a program consisting of these sources
 IF(USE_OPENMP)
-  ADD_EXECUTABLE(omp-macro-conservative omp-macro-conservative.c)
-  TARGET_LINK_LIBRARIES(omp-macro-conservative common ${DEPLIBS})
-
-  # Add a program consisting of these sources
-  ADD_EXECUTABLE(omp-blas omp-blas.c)
-  TARGET_LINK_LIBRARIES(omp-blas common ${DEPLIBS})
-
-  # Add a program consisting of these sources
-  ADD_EXECUTABLE(omp-blas-l3 omp-blas-l3.c)
-  TARGET_LINK_LIBRARIES(omp-blas-l3 common ${DEPLIBS})
+  ADD_APP(omp-macro-conservative omp-macro-conservative.c)
+  ADD_APP(omp-blas omp-blas.c)
+  ADD_APP(omp-blas-l3 omp-blas-l3.c)
 ENDIF(USE_OPENMP)
+
+# Generate convenience script
+CONFIGURE_FILE(runall.sh.in runall.sh @ONLY)
