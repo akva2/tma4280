@@ -1,0 +1,8 @@
+#!/bin/bash
+
+cd @CMAKE_BINARY_DIR@
+for j in @all-bin@
+do
+  echo "$j:"
+  ./$j $@
+done
