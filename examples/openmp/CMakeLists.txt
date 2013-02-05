@@ -43,6 +43,14 @@ ADD_EXECUTABLE(serial serial.c)
 TARGET_LINK_LIBRARIES(serial common ${DEPLIBS})
 
 # Add a program consisting of these sources
+ADD_EXECUTABLE(serial-blas serial-blas.c)
+TARGET_LINK_LIBRARIES(serial-blas common ${DEPLIBS})
+
+# Add a program consisting of these sources
+ADD_EXECUTABLE(serial-blas-l3 serial-blas-l3.c)
+TARGET_LINK_LIBRARIES(serial-blas-l3 common ${DEPLIBS})
+
+# Add a program consisting of these sources
 ADD_EXECUTABLE(omp-micro omp-micro.c)
 TARGET_LINK_LIBRARIES(omp-micro common ${DEPLIBS})
 
@@ -56,9 +64,10 @@ IF(USE_OPENMP)
   TARGET_LINK_LIBRARIES(omp-macro-conservative common ${DEPLIBS})
 
   # Add a program consisting of these sources
-  ADD_EXECUTABLE(omp-macro-conservative-blas omp-macro-conservative-blas.c)
-  TARGET_LINK_LIBRARIES(omp-macro-conservative-blas common ${DEPLIBS})
+  ADD_EXECUTABLE(omp-blas omp-blas.c)
+  TARGET_LINK_LIBRARIES(omp-blas common ${DEPLIBS})
 
-  ADD_EXECUTABLE(omp-macro-conservative-blas-timing omp-macro-conservative-blas-timing.c)
-  TARGET_LINK_LIBRARIES(omp-macro-conservative-blas-timing common ${DEPLIBS})
+  # Add a program consisting of these sources
+  ADD_EXECUTABLE(omp-blas-l3 omp-blas-l3.c)
+  TARGET_LINK_LIBRARIES(omp-blas-l3 common ${DEPLIBS})
 ENDIF(USE_OPENMP)

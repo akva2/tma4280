@@ -27,6 +27,20 @@ void MxV(double* u, double** A, double* v, int N)
   dgemv(&trans, &N, &N, &onef, A[0], &N, v, &one, &zerof, u, &one);
 }
 
+void MxM2(double** A, double** B, double** C, int M, int N, int K,
+         double alpha, double beta)
+{
+  char trans='N';
+  dgemm(&trans, &trans, &M, &N, &K, &alpha, A[0], &M, B[0], &K, &beta, C[0], &M);
+}
+
+void MxM(double* A, double* B, double* C, int M, int N, int K,
+         double alpha, double beta)
+{
+  char trans='N';
+  dgemm(&trans, &trans, &M, &N, &K, &alpha, A, &M, B, &K, &beta, C, &M);
+}
+
 double innerproduct(double* u, double* v, int N)
 {
   int one=1;

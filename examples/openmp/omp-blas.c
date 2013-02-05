@@ -34,7 +34,7 @@ int main(int argc, char** argv)
     A[i][i] = 1.0;
 
   double** v = createMatrix(N,K);
-  // fill with row number
+  // fill with column number
   for (int i=0;i<K;++i)
     for (int j=0;j<N;++j)
       v[i][j] = i;

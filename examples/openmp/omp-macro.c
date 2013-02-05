@@ -9,7 +9,7 @@ void myMxV(double* u, double** A, double* v, int N)
   for( int i=0;i<N;++i) {
     u[i] = 0;
     for( int j=0;j<N;++j )
-      u[i] += A[i][j]*v[j];
+      u[i] += A[j][i]*v[j];
   }
 }
 
@@ -51,14 +51,16 @@ int main(int argc, char** argv)
     A[i][i] = 1.0;
 
   double** v = createMatrix(N,K);
-  // fill with row number
+  // fill with column number
   for (int i=0;i<K;++i)
     for (int j=0;j<N;++j)
       v[i][j] = i;
 
+  double time = WallTime();
   double sum = dosum(A,v,K,N);
 
   printf("sum: %f\n", sum);
+  printf("elapsed: %f\n", WallTime()-time);
 
   return 0;
 }
