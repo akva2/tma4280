@@ -1,0 +1,11 @@
+#!/bin/bash
+
+PROCS=$1
+shift
+
+cd @CMAKE_BINARY_DIR@
+for j in @all-bin@
+do
+  echo "$j:"
+  mpirun -np $PROCS ./$j $@
+done
