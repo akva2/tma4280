@@ -24,7 +24,7 @@ FIND_PACKAGE(MPI REQUIRED)
 SET(INCLUDES ${INCLUDES} ${MPI_INCLUDE_PATH})
 
 # The list of our dependency libraries - here it is just the MPI libraries
-SET(DEPLIBS ${DEPLIBS} ${MPI_LIBRARIES})
+SET(DEPLIBS ${DEPLIBS} ${MPI_C_LIBRARIES})
 
 # Send the include directories to the compiler
 INCLUDE_DIRECTORIES(${INCLUDES})
