@@ -4,14 +4,15 @@
 #include "common.h"
 
 // calculates \sum_K v_i'*A*v_i
-double dosum(double** A, double** v, int K, int N)
+double dosum(Matrix A, Matrix v)
 {
   double alpha=0;
-  double temp[N];
-  for( int i=0;i<K;++i ) {
-    MxV(temp,A,v[i],N);
-    alpha += innerproduct(temp,v[i],N);
+  Vector temp = createVector(A->rows);
+  for( int i=0;i<v->cols;++i ) {
+    MxV(temp,A,v->col[i]);
+    alpha += innerproduct(temp,v->col[i]);
   }
+  freeVector(temp);
 
   return alpha;
 }
@@ -25,21 +26,23 @@ int main(int argc, char** argv)
   int N=atoi(argv[1]);
   int K=atoi(argv[2]);
 
-  double** A = createMatrix(N,N);
+  Matrix A = createMatrix(N,N);
   // identity matrix
   for (int i=0;i<N;++i)
-    A[i][i] = 1.0;
+    A->data[i][i] = 1.0;
 
-  double** v = createMatrix(N,K);
+  Matrix v = createMatrix(N,K);
   // fill with column number
   for (int i=0;i<K;++i)
     for (int j=0;j<N;++j)
-      v[i][j] = i;
+      v->data[i][j] = i;
 
   double time = WallTime();
-  double sum = dosum(A,v,K,N);
+  double sum = dosum(A,v);
 
   printf("sum: %f\n", sum);
   printf("elapsed: %f\n", WallTime()-time);
+  freeMatrix(v);
+  freeMatrix(A);
   return 0;
 }

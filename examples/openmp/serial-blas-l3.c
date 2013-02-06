@@ -12,23 +12,27 @@ int main(int argc, char** argv)
   int N=atoi(argv[1]);
   int K=atoi(argv[2]);
 
-  double** A = createMatrix(N,N);
+  Matrix A = createMatrix(N,N);
   // identity matrix
   for (int i=0;i<N;++i)
-    A[i][i] = 1.0;
+    A->data[i][i] = 1.0;
 
-  double** v = createMatrix(N,K);
+  Matrix v = createMatrix(N,K);
+
   // fill with column number
   for (int i=0;i<K;++i)
     for (int j=0;j<N;++j)
-      v[i][j] = i;
+      v->data[i][j] = i;
 
-  double** v2 = createMatrix(N,K);
+  Matrix v2 = createMatrix(N,K);
   double time = WallTime();
-  MxM2(A, v, v2, N, K, N, 1.0, 0.0);
-  double sum = innerproduct(v[0], v2[0], N*K);
+  MxM(A, v, v2, 1.0, 0.0);
+  double sum = innerproduct(v->as_vec, v2->as_vec);
 
   printf("sum: %f\n", sum);
   printf("elapsed: %f\n", WallTime()-time);
+  freeMatrix(v2);
+  freeMatrix(v);
+  freeMatrix(A);
   return 0;
 }
