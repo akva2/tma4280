@@ -14,27 +14,30 @@ int main(int argc, char** argv)
   int N=atoi(argv[1]);
   int K=atoi(argv[2]);
 
-  double** A = createMatrix(N,N);
+  Matrix A = createMatrix(N,N);
   // identity matrix
   for (int i=0;i<N;++i)
-    A[i][i] = 1.0;
+    A->data[i][i] = 1.0;
 
-  double** v = createMatrix(N,K);
+  Matrix v = createMatrix(N,K);
   // fill with column number
   for (int i=0;i<K;++i)
     for (int j=0;j<N;++j)
-      v[i][j] = i;
+      v->data[i][j] = i;
 
-  double** v2 = createMatrix(N,K);
+  Matrix v2 = createMatrix(N,K);
   double time = WallTime();
   int t = omp_get_max_threads();
 #pragma omp parallel for schedule(static)
   for (int i=0; i<t;++i)
-    MxM(A[0], v[i*K/t], v2[i*K/t], N, K/t, N, 1.0, 0.0);
+    MxM2(A, v, v2, i*K/t, K/t, 1.0, 0.0);
 
-  double sum = innerproduct(v[0], v2[0], N*K);
+  double sum = innerproduct(v->as_vec, v2->as_vec);
 
   printf("sum: %f\n", sum);
   printf("elapsed: %f\n", WallTime()-time);
+  freeMatrix(v);
+  freeMatrix(v2);
+  freeMatrix(A);
   return 0;
 }

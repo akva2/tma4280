@@ -6,45 +6,97 @@
 #include <omp.h>
 #endif
 
-double** createMatrix(int n1, int n2)
+Vector createVector(int len)
 {
-  int i;
-  double **a;
-  a    = (double **)calloc(n2   ,sizeof(double *));
-  a[0] = (double  *)calloc(n1*n2,sizeof(double));
-  for (i=1; i < n2; i++)
-    a[i] = a[i-1] + n1;
+  Vector result = (Vector)malloc(sizeof(vector_t));
+  result->data = calloc(len, sizeof(double));
+  result->len = len;
+  result->stride = 1;
 
-  return (a);
+  return result;
 }
 
-void MxV(double* u, double** A, double* v, int N)
+void freeVector(Vector vec)
+{
+  free(vec->data);
+  free(vec);
+}
+
+Matrix createMatrix(int n1, int n2)
+{
+  int i;
+  Matrix result = (Matrix)malloc(sizeof(matrix_t));
+  result->rows = n1;
+  result->cols = n2;
+  result->data = (double **)calloc(n2   ,sizeof(double *));
+  result->data[0] = (double  *)calloc(n1*n2,sizeof(double));
+  for (i=1; i < n2; i++)
+    result->data[i] = result->data[i-1] + n1;
+  result->as_vec = (Vector)malloc(sizeof(vector_t));
+  result->as_vec->data = result->data[0];
+  result->as_vec->len = n1*n2;
+  result->as_vec->stride = 1;
+  result->col = malloc(n2*sizeof(Vector));
+  for (int i=0;i<n2;++i) {
+    result->col[i] = malloc(sizeof(vector_t));
+    result->col[i]->len = n1;
+    result->col[i]->data = result->data[i];
+    result->col[i]->stride = 1;
+  }
+
+  result->row = malloc(n1*sizeof(Vector));
+  for (int i=0;i<n1;++i) {
+    result->row[i] = malloc(sizeof(vector_t));
+    result->row[i]->len = n2;
+    result->row[i]->data = result->data[0]+i;
+    result->row[i]->stride = n2;
+  }
+
+  return result;
+}
+
+void freeMatrix(Matrix A)
+{
+  for (int i=0;i<A->cols;++i)
+    free(A->col[i]);
+  free(A->col);
+  for (int i=0;i<A->rows;++i)
+    free(A->row[i]);
+  free(A->row);
+  free(A->as_vec);
+  free(A->data[0]);
+  free(A->data);
+  free(A);
+}
+
+void MxV(Vector u, const Matrix A, const Vector v)
 {
   char trans='N';
   double onef=1.0;
   double zerof=0.0;
-  int one=1;
-  dgemv(&trans, &N, &N, &onef, A[0], &N, v, &one, &zerof, u, &one);
+  dgemv(&trans, &A->rows, &A->cols, &onef, A->data[0], &A->rows, v->data,
+        &v->stride, &zerof, u->data, &u->stride);
 }
 
-void MxM2(double** A, double** B, double** C, int M, int N, int K,
-         double alpha, double beta)
+void MxM(const Matrix A, const Matrix B, Matrix C, double alpha, double beta)
 {
   char trans='N';
-  dgemm(&trans, &trans, &M, &N, &K, &alpha, A[0], &M, B[0], &K, &beta, C[0], &M);
+  dgemm(&trans, &trans, &A->rows, &B->cols, &A->cols, &alpha,
+        A->data[0], &A->rows, B->data[0], &A->cols, &beta, C->data[0], &C->rows);
 }
 
-void MxM(double* A, double* B, double* C, int M, int N, int K,
-         double alpha, double beta)
+void MxM2(const Matrix A, const Matrix B, Matrix C, int b_ofs, int b_col, 
+          double alpha, double beta)
 {
   char trans='N';
-  dgemm(&trans, &trans, &M, &N, &K, &alpha, A, &M, B, &K, &beta, C, &M);
+  dgemm(&trans, &trans, &A->rows, &b_col, &A->cols, &alpha,
+        A->data[0], &A->rows, B->data[b_ofs], &A->cols, &beta, C->data[b_ofs],
+        &C->rows);
 }
 
-double innerproduct(double* u, double* v, int N)
+double innerproduct(const Vector u, const Vector v)
 {
-  int one=1;
-  return ddot(&N, u, &one, v, &one);
+  return ddot(&u->len, u->data, &u->stride, v->data, &v->stride);
 }
 
 double WallTime ()
