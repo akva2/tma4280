@@ -1,6 +1,6 @@
 #pragma once
 
-#ifndef USE_MKL
+#ifndef HAVE_MKL
   #define ddot ddot_
   #define dgemv dgemv_
   #define dgemm dgemm_
