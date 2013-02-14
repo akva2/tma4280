@@ -23,10 +23,13 @@ typedef struct {
   double* data;
   int len;
   int globLen;
-  int ofs;
 #ifdef HAVE_MPI
   MPI_Comm comm;
 #endif
+  int comm_size;
+  int comm_rank;
+  int* displ;
+  int* sizes;
 } vector_t;
 
 typedef vector_t* Vector;
@@ -48,11 +51,13 @@ int get_thread();
 int num_threads();
 int max_threads();
 
-void splitVector(int globLen, int rank, int size, int* len, int* ofs);
+void splitVector(int globLen, int size, int** len, int** displ);
 Vector createVector(int len);
 #ifdef HAVE_MPI
 Vector createVectorMPI(int globLen, MPI_Comm* comm);
 #endif
+Matrix subMatrix(const Matrix A, int r_ofs, int r, int c_ofs, int c);
+
 void freeVector(Vector vec);
 
 // allocate a n1xn2 matrix in fortran format
@@ -69,10 +74,13 @@ void MxM(Matrix A, Matrix B, Matrix C, double alpha, double beta);
 
 // perform a matrix-matrix product
 void MxM2(Matrix A, Matrix B, Matrix C, int b_ofs, int b_col,
-          double alpha, double beta);
+          int c_ofs, double alpha, double beta);
 
 // perform an innerproduct
 double innerproduct(Vector u, Vector);
+
+// perform an innerproduct v2
+double innerproduct2(Vector u, int ofs, int len, Vector);
 
 // get current time in msecs
 double WallTime();

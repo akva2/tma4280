@@ -13,7 +13,12 @@
 void init_app(int argc, char** argv, int* rank, int* size)
 {
 #if HAVE_MPI
+#ifdef HAVE_OPENMP
+  int aquired;
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &aquired);
+#else
   MPI_Init(&argc, &argv);
+#endif
   MPI_Comm_size(MPI_COMM_WORLD, size);
   MPI_Comm_rank(MPI_COMM_WORLD, rank);
 #else
@@ -63,13 +68,16 @@ Vector createVector(int len)
   return result;
 }
 
-void splitVector(int globLen, int rank, int size, int* len, int* ofs)
+void splitVector(int globLen, int size, int** len, int** displ)
 {
-  *len = globLen/size;
-  *ofs = rank*(*len);
-  if (globLen % size && rank >= size-globLen%size) {
-    (*len)++;
-    *ofs += rank-(size-globLen%size);
+  *len = calloc(size,sizeof(int));
+  *displ = calloc(size,sizeof(int));
+  for (int i=0;i<size;++i) {
+    (*len)[i] = globLen/size;
+    if (globLen % size && i >= (size - globLen % size))
+      (*len)[i]++;
+    if (i < size-1)
+      (*displ)[i+1] = (*displ)[i]+(*len)[i];
   }
 }
 
@@ -78,10 +86,10 @@ Vector createVectorMPI(int globLen, MPI_Comm* comm)
 {
   Vector result = (Vector)calloc(1, sizeof(vector_t));
   MPI_Comm_dup(*comm, &result->comm);
-  int size, rank; 
-  MPI_Comm_size(*comm, &size);
-  MPI_Comm_rank(*comm, &rank);
-  splitVector(globLen, rank, size, &result->len, &result->ofs);
+  MPI_Comm_size(*comm, &result->comm_size);
+  MPI_Comm_rank(*comm, &result->comm_rank);
+  splitVector(globLen, result->comm_size, &result->sizes, &result->displ);
+  result->len = result->sizes[result->comm_rank];
   result->data = calloc(result->len, sizeof(double));
   result->globLen = globLen;
 }
@@ -94,6 +102,8 @@ void freeVector(Vector vec)
   if (vec->comm)
     MPI_Comm_free(&vec->comm);
 #endif
+  free(vec->displ);
+  free(vec->sizes);
   free(vec);
 }
 
@@ -116,6 +126,17 @@ Matrix createMatrix(int n1, int n2)
     result->col[i]->len = n1;
     result->col[i]->data = result->data[i];
   }
+
+  return result;
+}
+
+Matrix subMatrix(const Matrix A, int r_ofs, int r,
+                 int c_ofs, int c)
+{
+  Matrix result = createMatrix(r, c);
+  for (int i=0;i<c;++i)
+    for (int j=0;j<r;++j)
+      result->data[i][j] = A->data[i+c_ofs][j+r_ofs];
 
   return result;
 }
@@ -149,11 +170,11 @@ void MxM(Matrix A, Matrix B, Matrix C, double alpha, double beta)
 }
 
 void MxM2(Matrix A, Matrix B, Matrix C, int b_ofs, int b_col, 
-          double alpha, double beta)
+          int c_ofs, double alpha, double beta)
 {
   char trans='N';
   dgemm(&trans, &trans, &A->rows, &b_col, &A->cols, &alpha,
-        A->data[0], &A->rows, B->data[b_ofs], &A->cols, &beta, C->data[b_ofs],
+        A->data[0], &A->rows, B->data[b_ofs], &A->cols, &beta, C->data[c_ofs],
         &C->rows);
 }
 
@@ -161,6 +182,12 @@ double innerproduct(Vector u, Vector v)
 {
   int one=1;
   return ddot(&u->len, u->data, &one, v->data, &one);
+}
+
+double innerproduct2(Vector u, int ofs, int len, Vector v)
+{
+  int one=1;
+  return ddot(&len, u->data+ofs, &one, v->data, &one);
 }
 
 double WallTime ()

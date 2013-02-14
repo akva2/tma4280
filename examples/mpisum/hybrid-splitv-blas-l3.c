@@ -32,23 +32,28 @@ int main(int argc, char** argv)
   for (int i=0;i<N;++i)
     A->data[i][i] = 1.0;
   
-  int ofs, cols;
-  splitVector(K, rank, size, &cols, &ofs);
-  Matrix v = createMatrix(N,cols);
+  int *displ, *cols;
+  splitVector(K, size, &cols, &displ);
+  Matrix v = createMatrix(N,cols[rank]);
   // fill with column number
-  for (int i=0;i<cols;++i)
+  for (int i=0;i<cols[rank];++i)
     for (int j=0;j<N;++j)
-      v->data[i][j] = i+ofs;
+      v->data[i][j] = i+displ[rank];
 
-  Matrix v2 = createMatrix(N,K);
   double time = WallTime();
-#pragma omp parallel
+  double sum=0;
+#pragma omp parallel reduction(+:sum)
   {
-    int len, ofs;
-    splitVector(cols, get_thread(), num_threads(), &len, &ofs);
-    MxM2(A, v, v2, ofs, len, 1.0, 0.0);
+    int* len, *ofs;
+    splitVector(cols[rank], num_threads(), &len, &ofs);
+    Matrix v2 = createMatrix(N,len[get_thread()]);
+    MxM2(A, v, v2, ofs[get_thread()], len[get_thread()], 0, 1.0, 0.0);
+    sum = innerproduct2(v->as_vec, ofs[get_thread()]*N,
+                        len[get_thread()]*N, v2->as_vec);
+    free(len);
+    free(ofs);
+    freeMatrix(v2);
   }
-  double sum = innerproduct(v->as_vec, v2->as_vec);
 #ifdef HAVE_MPI
   double s2=sum;
   MPI_Allreduce(&s2, &sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -61,6 +66,9 @@ int main(int argc, char** argv)
 
   freeMatrix(v);
   freeMatrix(A);
+  free(cols);
+  free(displ);
+
   close_app();
   return 0;
 }

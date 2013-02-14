@@ -62,11 +62,15 @@ ENDMACRO(ADD_APP)
 ADD_APP(mpi-splitv mpi-splitv.c)
 ADD_APP(mpi-splitv-blas mpi-splitv-blas.c)
 ADD_APP(mpi-splitv-blas-l3 mpi-splitv-blas-l3.c)
+ADD_APP(mpi-splitav mpi-splitav.c)
+ADD_APP(mpi-splitav-blas mpi-splitav-blas.c)
+ADD_APP(mpi-splitav-blas-l3 mpi-splitav-blas-l3.c)
 
 IF(OPENMP_FOUND)
   ADD_APP(hybrid-splitv hybrid-splitv.c)
   ADD_APP(hybrid-splitv-blas hybrid-splitv-blas.c)
   ADD_APP(hybrid-splitv-blas-l3 hybrid-splitv-blas-l3.c)
+  ADD_APP(hybrid-splitav-blas-l3 hybrid-splitav-blas-l3.c)
 ENDIF(OPENMP_FOUND)
 
 # Generate convenience script

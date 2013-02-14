@@ -59,13 +59,14 @@ int main(int argc, char** argv)
   for (int i=0;i<N;++i)
     A->data[i][i] = 1.0;
   
-  int ofs, cols;
-  splitVector(K, rank, size, &cols, &ofs);
-  Matrix v = createMatrix(N,cols);
+  int* cols;
+  int* ofs;
+  splitVector(K, size, &cols, &ofs);
+  Matrix v = createMatrix(N,cols[rank]);
   // fill with column number
-  for (int i=0;i<cols;++i)
+  for (int i=0;i<cols[rank];++i)
     for (int j=0;j<N;++j)
-      v->data[i][j] = i+ofs;
+      v->data[i][j] = i+ofs[rank];
 
   double time = WallTime();
   double sum = dosum(A,v);
@@ -77,6 +78,8 @@ int main(int argc, char** argv)
 
   freeMatrix(v);
   freeMatrix(A);
+  free(cols);
+  free(ofs);
   close_app();
   return 0;
 }
