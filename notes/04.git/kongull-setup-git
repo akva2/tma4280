@@ -1,0 +1,5 @@
+ssh user@kongull.hpc.ntnu.no
+git init --bare myrepo-bare
+git clone myrepo-bare myrepo
+exit
+git remote add kongull user@kongull.hpc.ntnu.no:myrepo-bare
