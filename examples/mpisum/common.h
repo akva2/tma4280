@@ -8,6 +8,8 @@
 
 #ifdef HAVE_MPI
 #include <mpi.h>
+extern MPI_Comm WorldComm;
+extern MPI_Comm SelfComm;
 #endif
 
 // blas prototypes
@@ -22,9 +24,10 @@ void dgemm(char* transA, char* transB, int* M, int* N, int* K, double* alpha,
 typedef struct {
   double* data;
   int len;
+  int stride;
   int globLen;
 #ifdef HAVE_MPI
-  MPI_Comm comm;
+  MPI_Comm* comm;
 #endif
   int comm_size;
   int comm_rank;
@@ -38,8 +41,11 @@ typedef struct {
   double** data;
   Vector as_vec;
   Vector* col;
+  Vector* row;
   int rows;
   int cols;
+  int glob_rows;
+  int glob_cols;
 } matrix_t;
 
 typedef matrix_t* Matrix;
@@ -54,7 +60,7 @@ int max_threads();
 void splitVector(int globLen, int size, int** len, int** displ);
 Vector createVector(int len);
 #ifdef HAVE_MPI
-Vector createVectorMPI(int globLen, MPI_Comm* comm);
+Vector createVectorMPI(int globLen, int allocdata, MPI_Comm* comm);
 #endif
 Matrix subMatrix(const Matrix A, int r_ofs, int r, int c_ofs, int c);
 
@@ -63,6 +69,8 @@ void freeVector(Vector vec);
 // allocate a n1xn2 matrix in fortran format
 // note that reversed index order is assumed
 Matrix createMatrix(int n1, int n2);
+
+Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm);
 
 void freeMatrix(Matrix A);
 
@@ -84,3 +92,9 @@ double innerproduct2(Vector u, int ofs, int len, Vector);
 
 // get current time in msecs
 double WallTime();
+
+// io
+void saveVectorSerial(char* name, Vector data);
+void saveMatrixSerial(char* name, Matrix data);
+
+void saveVectorMPI(char* name, Vector data);
