@@ -1,6 +1,7 @@
 #include "common.h"
 #include <stdlib.h>
 #include <sys/time.h>
+#include <stdio.h>
 
 #ifdef HAVE_OPENMP
 #include <omp.h>
@@ -15,7 +16,10 @@ void init_app(int argc, char** argv, int* rank, int* size)
 #if HAVE_MPI
 #ifdef HAVE_OPENMP
   int aquired;
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &aquired);
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &aquired);
+  printf("aq %i %i %i %i %i\n", aquired, MPI_THREAD_SINGLE,
+                                MPI_THREAD_FUNNELED, MPI_THREAD_SERIALIZED,
+                                MPI_THREAD_MULTIPLE);
 #else
   MPI_Init(&argc, &argv);
 #endif
@@ -82,16 +86,21 @@ void splitVector(int globLen, int size, int** len, int** displ)
 }
 
 #ifdef HAVE_MPI
-Vector createVectorMPI(int globLen, MPI_Comm* comm)
+Vector createVectorMPI(int globLen, MPI_Comm comm, int allocdata)
 {
   Vector result = (Vector)calloc(1, sizeof(vector_t));
-  MPI_Comm_dup(*comm, &result->comm);
-  MPI_Comm_size(*comm, &result->comm_size);
-  MPI_Comm_rank(*comm, &result->comm_rank);
+  MPI_Comm_dup(comm, &result->comm);
+  MPI_Comm_size(comm, &result->comm_size);
+  MPI_Comm_rank(comm, &result->comm_rank);
   splitVector(globLen, result->comm_size, &result->sizes, &result->displ);
   result->len = result->sizes[result->comm_rank];
-  result->data = calloc(result->len, sizeof(double));
+  if (allocdata)
+    result->data = calloc(result->len, sizeof(double));
+  else
+    result->data = NULL;
   result->globLen = globLen;
+
+  return result;
 }
 #endif
 
@@ -119,12 +128,54 @@ Matrix createMatrix(int n1, int n2)
     result->data[i] = result->data[i-1] + n1;
   result->as_vec = (Vector)malloc(sizeof(vector_t));
   result->as_vec->data = result->data[0];
-  result->as_vec->len = n1*n2;
+  result->as_vec->globLen = n1*n2;
   result->col = malloc(n2*sizeof(Vector));
   for (int i=0;i<n2;++i) {
     result->col[i] = malloc(sizeof(vector_t));
     result->col[i]->len = n1;
     result->col[i]->data = result->data[i];
+  }
+
+  return result;
+}
+
+Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm comm)
+{
+  int i;
+  Matrix result = (Matrix)calloc(1, sizeof(matrix_t));
+
+  result->as_vec = createVectorMPI(N1*N2, comm, 0);
+  int n12 = n1;
+  if (n1 == -1)
+    n1 = result->as_vec->len/N2;
+  else
+    n2 = result->as_vec->len/N1;
+
+  result->rows = n1;
+  result->cols = n2;
+  result->glob_rows = N1;
+  result->glob_cols = N2;
+  result->data = (double **)calloc(n2   ,sizeof(double *));
+  result->data[0] = (double  *)calloc(n1*n2,sizeof(double));
+  result->as_vec->data = result->data[0];
+  for (i=1; i < n2; i++)
+    result->data[i] = result->data[i-1] + n1;
+  result->col = malloc(n2*sizeof(Vector));
+  for (int i=0;i<n2;++i) {
+    if (n12 == N1)
+      result->col[i] = createVectorMPI(N1, MPI_COMM_SELF, 0);
+    else
+      result->col[i] = createVectorMPI(N1, comm, 0);
+    result->col[i]->data = result->data[i];
+  }
+  result->row = malloc(n1*sizeof(Vector));
+  for (int i=0;i<n1;++i) {
+    if (n12 == N1)
+      result->row[i] = createVectorMPI(N2, comm, 0);
+    else
+      result->row[i] = createVectorMPI(N2, MPI_COMM_SELF, 0);
+    result->row[i]->data = result->data[0]+i;
+    result->row[i]->stride = n1;
   }
 
   return result;
@@ -202,4 +253,35 @@ double WallTime ()
   struct timeval tmpTime;
   gettimeofday(&tmpTime,NULL);
   return tmpTime.tv_sec + tmpTime.tv_usec/1.0e6;
+}
+
+void saveVectorSerial(char* name, Vector data)
+{
+  FILE* f = fopen(name,"wb");
+  for (int i=0;i<data->len;++i)
+    fprintf(f,"%f ",data->data[i]);
+  fclose(f);
+}
+
+void saveMatrixSerial(char* name, Matrix data)
+{
+  FILE* f = fopen(name,"wb");
+  for (int i=0;i<data->rows;++i)
+    for(int j=0;j<data->cols;++j)
+      fprintf(f,"%f%c",data->data[j][i], j==data->cols-1?'\n':' ');
+  fclose(f);
+}
+
+void saveVectorMPI(char* name, Vector data)
+{
+  MPI_File f;
+  MPI_File_open(data->comm, name, MPI_MODE_WRONLY | MPI_MODE_CREATE,
+                MPI_INFO_NULL, &f);
+  MPI_File_seek(f, 17*data->displ[data->comm_rank], MPI_SEEK_SET);
+  for (int i=0;i<data->len;++i) {
+    char num[21];
+    sprintf(num,"%016f ",data->data[i]);
+    MPI_File_write(f, num, 17, MPI_CHAR, MPI_STATUS_IGNORE);
+  }
+  MPI_File_close(&f);
 }

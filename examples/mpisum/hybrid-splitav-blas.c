@@ -6,19 +6,26 @@
 // perform a matrix-vector product
 void myMxV(Vector u, Matrix A, Vector v)
 {
-  for( int i=0;i<A->rows;++i) {
-    u->data[i] = 0;
-    for( int j=0;j<A->cols;++j )
-      u->data[i] += A->data[j][i]*v->data[j];
-  }
+  Vector temp = createVector(A->rows);
+  MxV(temp, A, v);
+#ifdef HAVE_MPI
+  for (int i=0;i<v->comm_size;++i)
+    MPI_Reduce(temp->data+v->displ[i], u->data, v->sizes[i],
+               MPI_DOUBLE, MPI_SUM, i, v->comm);
+#else
+  memcpy(u->data, temp->data, u->len*sizeof(double));
+#endif
+  freeVector(temp);
 }
 
 // perform an innerproduct
 double myinnerproduct(Vector u, Vector v)
 {
-  double result=0;
-  for( int i=0;i<u->len;++i )
-    result += u->data[i]*v->data[i];
+  double result = innerproduct(u, v);
+#ifdef HAVE_MPI
+  double r2=result;
+  MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_SUM, u->comm);
+#endif
   return result;
 }
 
@@ -29,13 +36,9 @@ double dosum(Matrix A, Matrix v)
   Vector temp = createVector(A->rows);
   for( int i=0;i<v->cols;++i ) {
     myMxV(temp,A,v->col[i]);
-    alpha += myinnerproduct(temp,v->col[i]);
+    alpha += myinnerproduct(v->col[i], temp);
   }
   freeVector(temp);
-#ifdef HAVE_MPI
-  double s2=alpha;
-  MPI_Allreduce(&s2, &alpha, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
 
   return alpha;
 }
@@ -53,18 +56,16 @@ int main(int argc, char** argv)
   int N=atoi(argv[1]);
   int K=atoi(argv[2]);
 
-  Matrix A = createMatrix(N,N);
+  Matrix A = createMatrixMPI(N, -1, N, N, MPI_COMM_WORLD);
   // identity matrix
-  for (int i=0;i<N;++i)
+  for (int i=0;i<A->cols;++i)
     A->data[i][i] = 1.0;
   
-  int *displ, *cols;
-  splitVector(K, size, &cols, &displ);
-  Matrix v = createMatrix(N,cols[rank]);
+  Matrix v = createMatrixMPI(-1, K, N, K, MPI_COMM_WORLD);
   // fill with column number
-  for (int i=0;i<cols[rank];++i)
-    for (int j=0;j<N;++j)
-      v->data[i][j] = i+displ[rank];
+  for (int i=0;i<v->rows;++i)
+    for (int j=0;j<v->cols;++j)
+      v->data[j][i] = j;
 
   double time = WallTime();
   double sum = dosum(A,v);
@@ -74,20 +75,8 @@ int main(int argc, char** argv)
     printf("elapsed: %f\n", WallTime()-time);
   }
 
-  char s[128];
-  sprintf(s,"vec-%i.asc", rank);
-  saveVectorSerial(s, v->as_vec);
-  sprintf(s,"mat-%i.asc", rank);
-  saveMatrixSerial(s, v);
-
-  sprintf(s,"vec.asc");
-  saveVectorMPI(s, v->as_vec);
-
   freeMatrix(v);
   freeMatrix(A);
-  free(displ);
-  free(cols);
-
   close_app();
   return 0;
 }
