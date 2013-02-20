@@ -11,12 +11,15 @@
 #include <mpi.h>
 #endif
 
+MPI_Comm WorldComm;
+MPI_Comm SelfComm;
+
 void init_app(int argc, char** argv, int* rank, int* size)
 {
 #if HAVE_MPI
 #ifdef HAVE_OPENMP
   int aquired;
-  MPI_Init_thread(&argc, &argv, MPI_THREAD_SERIALIZED, &aquired);
+  MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &aquired);
   printf("aq %i %i %i %i %i\n", aquired, MPI_THREAD_SINGLE,
                                 MPI_THREAD_FUNNELED, MPI_THREAD_SERIALIZED,
                                 MPI_THREAD_MULTIPLE);
@@ -25,6 +28,8 @@ void init_app(int argc, char** argv, int* rank, int* size)
 #endif
   MPI_Comm_size(MPI_COMM_WORLD, size);
   MPI_Comm_rank(MPI_COMM_WORLD, rank);
+  MPI_Comm_dup(MPI_COMM_WORLD, &WorldComm);
+  MPI_Comm_dup(MPI_COMM_SELF, &SelfComm);
 #else
   *rank = 0;
   *size = 1;
@@ -34,6 +39,8 @@ void init_app(int argc, char** argv, int* rank, int* size)
 void close_app()
 {
 #ifdef HAVE_MPI
+  MPI_Comm_free(&WorldComm);
+  MPI_Comm_free(&SelfComm);
   MPI_Finalize();
 #endif
 }
@@ -86,12 +93,12 @@ void splitVector(int globLen, int size, int** len, int** displ)
 }
 
 #ifdef HAVE_MPI
-Vector createVectorMPI(int globLen, MPI_Comm comm, int allocdata)
+Vector createVectorMPI(int globLen, int allocdata, MPI_Comm* comm)
 {
   Vector result = (Vector)calloc(1, sizeof(vector_t));
-  MPI_Comm_dup(comm, &result->comm);
-  MPI_Comm_size(comm, &result->comm_size);
-  MPI_Comm_rank(comm, &result->comm_rank);
+  result->comm = comm;
+  MPI_Comm_size(*comm, &result->comm_size);
+  MPI_Comm_rank(*comm, &result->comm_rank);
   splitVector(globLen, result->comm_size, &result->sizes, &result->displ);
   result->len = result->sizes[result->comm_rank];
   if (allocdata)
@@ -109,7 +116,7 @@ void freeVector(Vector vec)
   free(vec->data);
 #ifdef HAVE_MPI
   if (vec->comm)
-    MPI_Comm_free(&vec->comm);
+    MPI_Comm_free(vec->comm);
 #endif
   free(vec->displ);
   free(vec->sizes);
@@ -139,12 +146,12 @@ Matrix createMatrix(int n1, int n2)
   return result;
 }
 
-Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm comm)
+Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm)
 {
   int i;
   Matrix result = (Matrix)calloc(1, sizeof(matrix_t));
 
-  result->as_vec = createVectorMPI(N1*N2, comm, 0);
+  result->as_vec = createVectorMPI(N1*N2, 0, comm);
   int n12 = n1;
   if (n1 == -1)
     n1 = result->as_vec->len/N2;
@@ -162,18 +169,19 @@ Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm comm)
     result->data[i] = result->data[i-1] + n1;
   result->col = malloc(n2*sizeof(Vector));
   for (int i=0;i<n2;++i) {
-    if (n12 == N1)
-      result->col[i] = createVectorMPI(N1, MPI_COMM_SELF, 0);
-    else
-      result->col[i] = createVectorMPI(N1, comm, 0);
+    if (n12 == N1) {
+      result->col[i] = createVectorMPI(N1, 0, &SelfComm);
+    } else {
+      result->col[i] = createVectorMPI(N1, 0, comm);
+    }
     result->col[i]->data = result->data[i];
   }
   result->row = malloc(n1*sizeof(Vector));
   for (int i=0;i<n1;++i) {
     if (n12 == N1)
-      result->row[i] = createVectorMPI(N2, comm, 0);
+      result->row[i] = createVectorMPI(N2, 0, comm);
     else
-      result->row[i] = createVectorMPI(N2, MPI_COMM_SELF, 0);
+      result->row[i] = createVectorMPI(N2, 0, &SelfComm);
     result->row[i]->data = result->data[0]+i;
     result->row[i]->stride = n1;
   }
@@ -275,7 +283,7 @@ void saveMatrixSerial(char* name, Matrix data)
 void saveVectorMPI(char* name, Vector data)
 {
   MPI_File f;
-  MPI_File_open(data->comm, name, MPI_MODE_WRONLY | MPI_MODE_CREATE,
+  MPI_File_open(*data->comm, name, MPI_MODE_WRONLY | MPI_MODE_CREATE,
                 MPI_INFO_NULL, &f);
   MPI_File_seek(f, 17*data->displ[data->comm_rank], MPI_SEEK_SET);
   for (int i=0;i<data->len;++i) {

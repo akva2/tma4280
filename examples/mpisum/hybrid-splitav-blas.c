@@ -11,7 +11,7 @@ void myMxV(Vector u, Matrix A, Vector v)
 #ifdef HAVE_MPI
   for (int i=0;i<v->comm_size;++i)
     MPI_Reduce(temp->data+v->displ[i], u->data, v->sizes[i],
-               MPI_DOUBLE, MPI_SUM, i, v->comm);
+               MPI_DOUBLE, MPI_SUM, i, *v->comm);
 #else
   memcpy(u->data, temp->data, u->len*sizeof(double));
 #endif
@@ -24,7 +24,7 @@ double myinnerproduct(Vector u, Vector v)
   double result = innerproduct(u, v);
 #ifdef HAVE_MPI
   double r2=result;
-  MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_SUM, u->comm);
+  MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_SUM, *u->comm);
 #endif
   return result;
 }

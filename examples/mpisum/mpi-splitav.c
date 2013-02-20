@@ -15,7 +15,7 @@ void myMxV(Vector u, Matrix A, Vector v)
 #ifdef HAVE_MPI
   for (int i=0;i<v->comm_size;++i) {
     MPI_Reduce(temp->data+v->displ[i], u->data, v->sizes[i],
-               MPI_DOUBLE, MPI_SUM, i, v->comm);
+               MPI_DOUBLE, MPI_SUM, i, *v->comm);
   }
 #else
   memcpy(u->data, temp->data, u->len*sizeof(double));
@@ -31,7 +31,7 @@ double myinnerproduct(Vector u, Vector v)
     result += u->data[i]*v->data[i];
 #ifdef HAVE_MPI
   double r2=result;
-  MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_SUM, u->comm);
+  MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_SUM, *u->comm);
 #endif
   return result;
 }
@@ -40,12 +40,12 @@ double myinnerproduct(Vector u, Vector v)
 double dosum(Matrix A, Matrix v)
 {
   double alpha=0;
-  Vector temp = createVector(A->rows);
   for( int i=0;i<v->cols;++i ) {
+    Vector temp = createVector(A->rows);
     myMxV(temp,A,v->col[i]);
     alpha += myinnerproduct(v->col[i], temp);
+    freeVector(temp);
   }
-  freeVector(temp);
 
   return alpha;
 }
@@ -63,12 +63,12 @@ int main(int argc, char** argv)
   int N=atoi(argv[1]);
   int K=atoi(argv[2]);
 
-  Matrix A = createMatrixMPI(N, -1, N, N, MPI_COMM_WORLD);
+  Matrix A = createMatrixMPI(N, -1, N, N, &WorldComm);
   // identity matrix
   for (int i=0;i<A->cols;++i)
     A->data[i][i] = 1.0;
   
-  Matrix v = createMatrixMPI(-1, K, N, K, MPI_COMM_WORLD);
+  Matrix v = createMatrixMPI(-1, K, N, K, &WorldComm);
   // fill with column number
   for (int i=0;i<v->rows;++i)
     for (int j=0;j<v->cols;++j)
