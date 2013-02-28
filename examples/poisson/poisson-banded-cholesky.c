@@ -48,21 +48,7 @@ int main(int argc, char** argv)
 
   double h = L/N;
 
-  Matrix AF = createMatrix(M*M,M*M);
-  for (int i=0;i<M;++i) {
-    for (int j=0;j<M;++j) {
-      AF->data[i*M+j][i*M+j] = 4.0;
-      if (j > 0)
-        AF->data[i*M+j][i*M+j-1] = -1.0;
-      if (j < M-1)
-        AF->data[i*M+j][i*M+j+1] = -1.0;
-      if (i < M-1)
-        AF->data[i*M+j][(i+1)*M+j] = -1.0;
-      if (i > 0)
-        AF->data[i*M+j][(i-1)*M+j] = -1.0;
-    }
-  }
-
+  Matrix AF = createPoisson2D(M, 0.0);
   Matrix A = makeBanded(AF, M*M, 0, M);
 
   Vector grid = createVector(M);

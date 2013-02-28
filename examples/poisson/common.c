@@ -6,6 +6,8 @@
 #include <sys/time.h>
 #include <stdio.h>
 
+#include "blaslapack.h"
+
 #ifdef HAVE_OPENMP
 #include <omp.h>
 #endif
@@ -229,30 +231,43 @@ void freeMatrix(Matrix A)
   free(A);
 }
 
-void MxV(Vector u, Matrix A, Vector v, double alpha, double beta)
+void MxV(Vector y, const Matrix A, const Vector x, double alpha, double beta)
 {
   char trans='N';
   int one=1;
-  dgemv(&trans, &A->rows, &A->cols, &alpha, A->data[0], &A->rows, v->data,
-        &one, &beta, u->data, &one);
+#ifdef HAVE_MPI
+  Vector temp = createVector(A->rows);
+  copyVector(y, x);
+#else
+  Vector temp=y;
+#endif
+  dgemv(&trans, &A->rows, &A->cols, &alpha, A->data[0], &A->rows, x->data,
+        &x->stride, &beta, temp->data, &one);
+#ifdef HAVE_MPI
+  for (int i=0;i<x->comm_size;++i) {
+    MPI_Reduce(temp->data+x->displ[i], y->data, x->sizes[i],
+               MPI_DOUBLE, MPI_SUM, i, *x->comm);
+  }
+  freeVector(temp);
+#endif
 }
 
-void MxVdispl(Vector u, Matrix A, Vector v, double alpha, double beta,
-              int len, int displ)
+void MxVdispl(Vector y, const Matrix A, const Vector x, 
+              double alpha, double beta, int ydispl)
 {
   char trans='N';
-  dgemv(&trans, &A->rows, &A->cols, &alpha, A->data[0], &A->rows, v->data,
-        &v->stride, &beta, u->data+displ*u->stride, &u->stride);
+  dgemv(&trans, &A->rows, &A->cols, &alpha, A->data[0], &A->rows, x->data,
+        &x->stride, &beta, y->data+ydispl*y->stride, &y->stride);
 }
 
-void MxM(Matrix A, Matrix B, Matrix C, double alpha, double beta)
+void MxM(Matrix C, const Matrix A, const Matrix B, double alpha, double beta)
 {
   char trans='N';
   dgemm(&trans, &trans, &A->rows, &B->cols, &A->cols, &alpha,
         A->data[0], &A->rows, B->data[0], &A->cols, &beta, C->data[0], &C->rows);
 }
 
-void MxM2(Matrix A, Matrix B, Matrix C, int b_ofs, int b_col, 
+void MxM2(Matrix C, const Matrix A, const Matrix B, int b_ofs, int b_col, 
           int c_ofs, double alpha, double beta)
 {
   char trans='N';
@@ -261,23 +276,21 @@ void MxM2(Matrix A, Matrix B, Matrix C, int b_ofs, int b_col,
         &C->rows);
 }
 
-void transposeMatrix(const Matrix B, Matrix A)
+void transposeMatrix(Matrix A, const Matrix B)
 {
   for (int i=0;i<B->cols;++i)
     for (int j=0;j<B->rows;++j)
       A->data[j][i] = B->data[i][j];
 }
 
-double innerproduct(Vector u, Vector v)
+double innerproduct(const Vector x, const Vector y)
 {
-  int one=1;
-  return ddot(&u->len, u->data, &one, v->data, &one);
+  return ddot(&x->len, x->data, &x->stride, y->data, &y->stride);
 }
 
-double innerproduct2(Vector u, int ofs, int len, Vector v)
+double innerproduct2(const Vector x, const Vector y, int xdispl, int len)
 {
-  int one=1;
-  return ddot(&len, u->data+ofs, &one, v->data, &one);
+  return ddot(&len, x->data+xdispl*x->stride, &x->stride, y->data, &y->stride);
 }
 
 double WallTime ()
@@ -294,112 +307,115 @@ double WallTime ()
   return tmpTime.tv_sec + tmpTime.tv_usec/1.0e6;
 }
 
-void saveVectorSerial(char* name, Vector data)
+void saveVectorSerial(char* name, const Vector x)
 {
   FILE* f = fopen(name,"wb");
-  for (int i=0;i<data->len;++i)
-    fprintf(f,"%f ",data->data[i]);
+  for (int i=0;i<x->len;++i)
+    fprintf(f,"%f ",x->data[i]);
   fclose(f);
 }
 
-void saveMatrixSerial(char* name, Matrix data)
+void saveMatrixSerial(char* name, const Matrix x)
 {
   FILE* f = fopen(name,"wb");
-  for (int i=0;i<data->rows;++i)
-    for(int j=0;j<data->cols;++j)
-      fprintf(f,"%f%c",data->data[j][i], j==data->cols-1?'\n':' ');
+  for (int i=0;i<x->rows;++i)
+    for(int j=0;j<x->cols;++j)
+      fprintf(f,"%f%c",x->data[j][i], j==x->cols-1?'\n':' ');
   fclose(f);
 }
 
 #ifdef HAVE_MPI
-void saveVectorMPI(char* name, Vector data)
+void saveVectorMPI(char* name, const Vector x)
 {
   MPI_File f;
-  MPI_File_open(*data->comm, name, MPI_MODE_WRONLY | MPI_MODE_CREATE,
+  MPI_File_open(*x->comm, name, MPI_MODE_WRONLY | MPI_MODE_CREATE,
                 MPI_INFO_NULL, &f);
-  MPI_File_seek(f, 17*data->displ[data->comm_rank], MPI_SEEK_SET);
-  for (int i=0;i<data->len;++i) {
+  MPI_File_seek(f, 17*x->displ[x->comm_rank], MPI_SEEK_SET);
+  for (int i=0;i<x->len;++i) {
     char num[21];
-    sprintf(num,"%016f ",data->data[i]);
+    sprintf(num,"%016f ",x->data[i]);
     MPI_File_write(f, num, 17, MPI_CHAR, MPI_STATUS_IGNORE);
   }
   MPI_File_close(&f);
 }
 #endif
 
-void lusolve(Matrix A, Vector u)
+void lusolve(Matrix A, Vector x, int** ipiv)
 {
-  int* ipiv = malloc(u->len*sizeof(int));
+  if (*ipiv == NULL)
+    *ipiv = malloc(x->len*sizeof(int));
   int one=1;
   int info;
-  dgesv(&u->len,&one,A->data[0],&u->len,ipiv,u->data,&u->len,&info);
-  free(ipiv);
+  dgesv(&x->len,&one,A->data[0],&x->len,*ipiv,x->data,&x->len,&info);
 }
 
-void llsolve(Matrix A, Vector u)
+void llsolve(Matrix A, Vector x)
 {
   int one=1;
   int info;
   char uplo='U';
-  dpotrf(&uplo,&u->len,A->data[0],&u->len,&info);
-  dpotrs(&uplo,&u->len,&one,A->data[0],&u->len,u->data,&u->len,&info);
+  dpotrf(&uplo,&x->len,A->data[0],&x->len,&info);
+  dpotrs(&uplo,&x->len,&one,A->data[0],&x->len,x->data,&x->len,&info);
 }
 
-void lutsolve(Matrix A, Vector u, char uplo)
+void lutsolve(Matrix A, Vector x, char uplo)
 {
   char trans='N';
   char diag='N';
   int one=1;
   int info;
   dtrtrs(&uplo, &trans, &diag, &A->rows, &one,
-         A->data[0], &A->rows, u->data, &A->rows, &info);
+         A->data[0], &A->rows, x->data, &A->rows, &info);
 }
 
-void fillVector(Vector u, double fill)
+void fillVector(Vector x, double alpha)
 {
-  for (int i=0;i<u->len;++i)
-    u->data[i*u->stride] = fill;
+  for (int i=0;i<x->len;++i)
+    x->data[i*x->stride] = alpha;
 }
 
-void copyVector(const Vector v, Vector u)
+void copyVector(Vector y, const Vector x)
 {
-  dcopy(&u->len, v->data, &v->stride, u->data, &u->stride);
+  dcopy(&x->len, x->data, &x->stride, y->data, &y->stride);
 }
 
-void copyVectorDispl(const Vector v, Vector u, int size, int displ)
+void copyVectorDispl(Vector y, const Vector x, int ysize, int xdispl)
 {
-  dcopy(&size, v->data+displ*v->stride, &v->stride, u->data, &u->stride);
+  dcopy(&ysize, x->data+xdispl*x->stride, &x->stride, y->data, &y->stride);
 }
 
-void scaleVector(Vector u, double alpha)
+void scaleVector(Vector x, double alpha)
 {
-  dscal(&u->len, &alpha, u->data, &u->stride);
+  dscal(&x->len, &alpha, x->data, &x->stride);
 }
 
-double maxNorm(const Vector u)
+double maxNorm(const Vector x)
 {
-  return fabs(u->data[idamax(&u->len, u->data, &u->stride)-1]);
+  // idamax is a fortran function, and the first index is 1
+  // since indices in C are 0 based, we have to decrease it 
+  return fabs(x->data[idamax(&x->len, x->data, &x->stride)-1]);
 }
 
-void axpy(const Vector v, Vector u, double alpha)
+void axpy(Vector y, const Vector x, double alpha)
 {
-  daxpy(&u->len, &alpha, v->data, &v->stride, u->data, &u->stride);
+  daxpy(&x->len, &alpha, x->data, &x->stride, y->data, &y->stride);
 }
 
-void evalMesh(Vector u, Vector gridx, Vector gridy, function2 f)
-{
-#pragma omp parallel for schedule(static)
-  for (int i=0;i<gridy->len;++i)
-    for (int j=0;j<gridx->len;++j)
-      u->data[i*gridy->len+j] = f(gridx->data[j],gridy->data[i]);
-}
-
-void evalMesh2(Vector u, Vector gridx, Vector gridy, function2 f, double alpha)
+void evalMesh(Vector u, const Vector x, const Vector y, function2 f)
 {
 #pragma omp parallel for schedule(static)
-  for (int i=0;i<gridy->len;++i)
-    for (int j=0;j<gridx->len;++j)
-      u->data[i*gridy->len+j] += alpha*f(gridx->data[j],gridy->data[i]);
+  for (int j=0;j<y->len;++j)
+    for (int i=0;i<x->len;++i)
+      u->data[j*x->len+i] = f(x->data[i],y->data[j]);
+}
+
+void evalMesh2(Vector u, const Vector x, const Vector y,
+               function2 f, double alpha)
+{
+#pragma omp parallel for schedule(static)
+  for (int j=0;j<y->len;++j)
+    for (int i=0;i<x->len;++i)
+      u->data[j*x->len+i] += alpha*f(x->data[i],y->data[j]);
 }
 
 double poisson_source(double x, double y)
@@ -419,13 +435,13 @@ Matrix createPoisson2D(int M, double mu)
     for (int j=0;j<M;++j) {
       A->data[i*M+j][i*M+j] = 4.0+mu;
       if (j > 0)
-        A->data[i*M+j][i*M+j-1] = -1.0;
+        A->data[i*M+j-1][i*M+j] = -1.0;
       if (j < M-1)
-        A->data[i*M+j][i*M+j+1] = -1.0;
+        A->data[i*M+j+1][i*M+j] = -1.0;
       if (i < M-1)
-        A->data[i*M+j][(i+1)*M+j] = -1.0;
+        A->data[(i+1)*M+j][i*M+j] = -1.0;
       if (i > 0)
-        A->data[i*M+j][(i-1)*M+j] = -1.0;
+        A->data[(i-1)*M+j][i*M+j] = -1.0;
     }
   }
 

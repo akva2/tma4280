@@ -11,13 +11,13 @@ void GS(Matrix A, Vector u, double tolerance, int maxit)
   Vector b = createVector(u->len);
   Vector e = createVector(u->len);
   Vector v = createVector(u->len);
-  copyVector(u, b);
+  copyVector(b, u);
   fillVector(u, 0.0);
   double max = tolerance+1;
   while (max > tolerance && ++it < maxit) {
-    copyVector(u, e);
+    copyVector(e, u);
+    copyVector(u, b);
     for (int i=0;i<A->rows;++i) {
-      u->data[i] = b->data[i];
       for (int j=0;j<A->cols;++j) {
         if (j != i)
           u->data[i] -= A->data[j][i]*v->data[j];
@@ -25,7 +25,7 @@ void GS(Matrix A, Vector u, double tolerance, int maxit)
       u->data[i] /= A->data[i][i];
       v->data[i] = u->data[i];
     }
-    axpy(u, e, -1.0);
+    axpy(e, u, -1.0);
     max = sqrt(innerproduct(e, e));
   }
   printf("number of iterations %i %f\n", it, max);
@@ -41,19 +41,19 @@ void GShog(Matrix A, Vector u, double tolerance, int maxit)
   Vector e = createVector(u->len);
   Vector v = createVector(u->len);
   Matrix U  = createMatrix(A->rows, A->cols);
-  copyVector(A->as_vec, U->as_vec);
+  copyVector(U->as_vec, A->as_vec);
   for (int i=0;i<U->rows;++i)
     for (int j=0;j<=i;++j)
       U->data[j][i] = 0.0;
-  copyVector(u, b);
+  copyVector(b, u);
   fillVector(u, 0.0);
   double max = tolerance+1;
   while (max > tolerance && ++it < maxit) {
-    copyVector(u, e);
-    copyVector(b, u);
+    copyVector(e, u);
+    copyVector(u, b);
     MxV(u, U, e, -1.0, 1.0);
     lutsolve(A, u, 'L');
-    axpy(u, e, -1.0);
+    axpy(e, u, -1.0);
     max = sqrt(innerproduct(e, e));
   }
   printf("number of iterations %i %f\n", it, max);
@@ -95,7 +95,7 @@ int main(int argc, char** argv)
   scaleVector(u, h*h);
 
   double time = WallTime();
-  GShog(A, u, 1e-6, 1000);
+  GS(A, u, 1e-6, 1000);
 
   evalMesh2(u, grid, grid, exact_solution, -1.0);
   double max = maxNorm(u);

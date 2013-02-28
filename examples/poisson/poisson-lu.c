@@ -37,7 +37,8 @@ int main(int argc, char** argv)
   scaleVector(u, h*h);
 
   double time = WallTime();
-  lusolve(A, u);
+  int* ipiv=NULL;
+  lusolve(A, u, &ipiv);
 
   evalMesh2(u, grid, grid, exact_solution, -1.0);
   double max = maxNorm(u);
@@ -50,6 +51,7 @@ int main(int argc, char** argv)
   freeVector(u);
   freeVector(grid);
   freeMatrix(A);
+  free(ipiv);
 
   close_app();
   return 0;

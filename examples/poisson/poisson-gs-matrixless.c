@@ -14,12 +14,12 @@ void GS(Vector u, double tolerance, int maxit)
   int M = sqrt(u->len);
   int* sizes, *displ;
   splitVector(M, 2*max_threads(), &sizes, &displ);
-  copyVector(u, b);
+  copyVector(b, u);
   fillVector(u, 0.0);
   double max = tolerance+1;
   while (max > tolerance && ++it < maxit) {
-    copyVector(u, e);
-    copyVector(b, u);
+    copyVector(e, u);
+    copyVector(u, b);
     for (int color=0;color<2;++color) {
       for (int i=0;i<M;++i) {
 #pragma omp parallel
@@ -40,7 +40,7 @@ void GS(Vector u, double tolerance, int maxit)
         }
       }
     }
-    axpy(u, e, -1.0);
+    axpy(e, u, -1.0);
     max = sqrt(innerproduct(e, e));
   }
   printf("number of iterations %i %f\n", it, max);

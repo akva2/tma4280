@@ -9,14 +9,14 @@ typedef struct {
   double mu;
 } poisson_info_t;
 
-void precondition(const Vector v, Vector u, void* ctx)
+void precondition(Vector u, const Vector v, void* ctx)
 {
   poisson_info_t* info = ctx;
   fillVector(u, 0.0);
-  axpy(v, u, 1.0/(4.0+info->mu));
+  axpy(u, v, 1.0/(4.0+info->mu));
 }
 
-void evaluate(const Vector v, Vector u, void* ctx)
+void evaluate(Vector u, const Vector v, void* ctx)
 {
   poisson_info_t* info = ctx;
   int M = sqrt(v->len);
@@ -37,7 +37,7 @@ void evaluate(const Vector v, Vector u, void* ctx)
   }
 }
 
-typedef void(*eval_t)(const Vector, Vector, void* ctx);
+typedef void(*eval_t)(Vector, const Vector, void*);
 
 void pcg(eval_t A, eval_t pre, Vector b, double tolerance, void* ctx)
 {
@@ -47,27 +47,27 @@ void pcg(eval_t A, eval_t pre, Vector b, double tolerance, void* ctx)
   Vector buffer = createVector(b->len);
   double dotp = 1000;
   double rdr = dotp;
-  copyVector(b,r);
+  copyVector(r,b);
   double rl = innerproduct(b,r);
   fillVector(b, 0.0);
   int i=0;
   while (i < b->len && rdr/rl > tolerance) {
-    pre(r,z,ctx);
+    pre(z,r,ctx);
     ++i;
     if (i == 1) {
-      copyVector(z,p);
+      copyVector(p,z);
       dotp = innerproduct(r,z);
     } else {
       double dotp2 = innerproduct(r,z);
       double beta = dotp2/dotp;
       dotp = dotp2;
       scaleVector(p,beta);
-      axpy(z,p,1.0);
+      axpy(p,z,1.0);
     }
-    A(p, buffer, ctx);
+    A(buffer, p, ctx);
     double alpha = dotp/innerproduct(p,buffer);
-    axpy(p,b,alpha);
-    axpy(buffer,r,-alpha);
+    axpy(b,p,alpha);
+    axpy(r,buffer,-alpha);
     rdr = sqrt(innerproduct(r,r));
   }
   printf("%i iterations\n",i);

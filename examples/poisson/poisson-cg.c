@@ -13,25 +13,25 @@ void cg(Matrix A, Vector b, double tolerance)
   Vector buffer = createVector(b->len);
   double dotp = 1000;
   double rdr = dotp;
-  copyVector(b,r);
+  copyVector(r,b);
   fillVector(b, 0.0);
   int i=0;
   while (i < b->len && rdr > tolerance) {
     ++i;
     if (i == 1) {
-      copyVector(r,p);
+      copyVector(p,r);
       dotp = innerproduct(r,r);
     } else {
       double dotp2 = innerproduct(r,r);
       double beta = dotp2/dotp;
       dotp = dotp2;
       scaleVector(p,beta);
-      axpy(r,p,1.0);
+      axpy(p,r,1.0);
     }
     MxV(buffer, A, p, 1.0, 0.0);
     double alpha = dotp/innerproduct(p,buffer);
-    axpy(p,b,alpha);
-    axpy(buffer,r,-alpha);
+    axpy(b,p,alpha);
+    axpy(r,buffer,-alpha);
     rdr = sqrt(innerproduct(r,r));
   }
   printf("%i iterations\n",i);
@@ -61,13 +61,18 @@ int main(int argc, char** argv)
 
   double h = L/N;
 
+#ifdef HAVE_MPI
+  Matrix A = createPoisson2DMPI(M, 0.0);
+  Vector u = createVectorMPI(M*M, 1, &WorldComm);
+#else
   Matrix A = createPoisson2D(M, 0.0);
-
+  Vector u = createVector(M*M);
+#endif
   Vector grid = createVector(M);
+
   for (int i=0;i<M;++i)
     grid->data[i] = (i+1)*h;
 
-  Vector u = createVector(M*M);
   evalMesh(u, grid, grid, poisson_source);
   scaleVector(u, h*h);
 

@@ -11,14 +11,14 @@ void GJ(Vector u, double tolerance, int maxit, double mu)
   Vector b = createVector(u->len);
   Vector e = createVector(u->len);
   Vector v = createVector(u->len);
-  copyVector(u, b);
+  copyVector(b, u);
   fillVector(u, 0.0);
   double max = tolerance+1;
   int M = sqrt(u->len);
   while (max > tolerance && ++it < maxit) {
-    copyVector(u, e);
-    copyVector(u, v);
-    copyVector(b, u);
+    copyVector(e, u);
+    copyVector(v, u);
+    copyVector(u, b);
 #pragma omp parallel for schedule(static)
     for (int i=0;i<M;++i) {
       int cnt = i*M;
@@ -34,7 +34,7 @@ void GJ(Vector u, double tolerance, int maxit, double mu)
         u->data[cnt] /= (4.0+mu);
       }
     }
-    axpy(u, e, -1.0);
+    axpy(e, u, -1.0);
     max = sqrt(innerproduct(e, e));
   }
   printf("number of iterations %i %f\n", it, max);

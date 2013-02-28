@@ -63,7 +63,7 @@ int main(int argc, char** argv)
   for (int j=0; j < M; j++)
     fst(u->data[j], &N, z->data, &NN);
 
-  transposeMatrix(u, ut);
+  transposeMatrix(ut, u);
 
   for (int i=0; i < M; i++)
     fstinv(ut->data[i], &N, z->data, &NN);
@@ -75,7 +75,7 @@ int main(int argc, char** argv)
   for (int i=0; i < M; i++)
     fst(ut->data[i], &N, z->data, &NN);
 
-  transposeMatrix(ut, u);
+  transposeMatrix(u, ut);
 
   for (int j=0; j < M; j++)
     fstinv(u->data[j], &N, z->data, &NN);

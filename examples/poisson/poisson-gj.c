@@ -10,12 +10,12 @@ void GJ(Matrix A, Vector u, double tolerance, int maxit)
   int it=0;
   Vector b = createVector(u->len);
   Vector e = createVector(u->len);
-  copyVector(u, b);
+  copyVector(b, u);
   fillVector(u, 0.0);
   double max = tolerance+1;
   while (max > tolerance && ++it < maxit) {
-    copyVector(u, e);
-    copyVector(b, u);
+    copyVector(e, u);
+    copyVector(u, b);
 #pragma omp parallel for schedule(static)
     for (int i=0;i<A->rows;++i) {
       for (int j=0;j<A->cols;++j) {
@@ -24,7 +24,7 @@ void GJ(Matrix A, Vector u, double tolerance, int maxit)
       }
       u->data[i] /= A->data[i][i];
     }
-    axpy(u, e, -1.0);
+    axpy(e, u, -1.0);
     max = sqrt(innerproduct(e, e));
   }
   printf("number of iterations %i %f\n", it, max);
@@ -47,23 +47,24 @@ void GJhog(Matrix A, Vector u, double tolerance, int maxit)
     for (int i=0;i<sizes[get_thread()];++i)
       LpU[get_thread()]->data[i+displ[get_thread()]][i] = 0.0;
   }
-  copyVector(u, b);
+  copyVector(b, u);
   fillVector(u, 0.0);
   double max = tolerance+1;
   while (max > tolerance && ++it < maxit) {
-    copyVector(u, e);
-    copyVector(b, u);
+    copyVector(e, u);
+    copyVector(u, b);
 #pragma omp parallel
     {
       MxVdispl(u, LpU[get_thread()], e, -1.0, 1.0,
-               sizes[get_thread()], displ[get_thread()]);
+               displ[get_thread()]);
       for (int i=0;i<sizes[get_thread()];++i)
         u->data[i+displ[get_thread()]] /= A->data[i+displ[get_thread()]]
                                                  [i+displ[get_thread()]];
     }
-    axpy(u, e, -1.0);
+    axpy(e, u, -1.0);
     max = sqrt(innerproduct(e, e));
   }
+  printf("number of iterations %i %f\n", it, max);
   free(sizes);
   free(displ);
   freeVector(e);
@@ -71,7 +72,6 @@ void GJhog(Matrix A, Vector u, double tolerance, int maxit)
   for (int i=0;i<max_threads();++i)
     freeMatrix(LpU[i]);
   free(LpU);
-  printf("number of iterations %i %f\n", it, max);
 }
 
 int main(int argc, char** argv)

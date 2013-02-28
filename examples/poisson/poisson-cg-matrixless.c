@@ -6,7 +6,7 @@
 
 #include "common.h"
 
-void evaluate(const Vector v, Vector u)
+void evaluate(Vector u, const Vector v)
 {
   int M = sqrt(v->len);
 #pragma omp parallel for schedule(static)
@@ -26,7 +26,7 @@ void evaluate(const Vector v, Vector u)
   }
 }
 
-typedef void(*eval_t)(const Vector, Vector);
+typedef void(*eval_t)(Vector, const Vector);
 
 void cg(eval_t A, Vector b, double tolerance)
 {
@@ -35,25 +35,25 @@ void cg(eval_t A, Vector b, double tolerance)
   Vector buffer = createVector(b->len);
   double dotp = 1000;
   double rdr = dotp;
-  copyVector(b,r);
+  copyVector(r,b);
   fillVector(b, 0.0);
   int i=0;
   while (i < b->len && rdr > tolerance) {
     ++i;
     if (i == 1) {
-      copyVector(r,p);
+      copyVector(p,r);
       dotp = innerproduct(r,r);
     } else {
       double dotp2 = innerproduct(r,r);
       double beta = dotp2/dotp;
       dotp = dotp2;
       scaleVector(p,beta);
-      axpy(r,p,1.0);
+      axpy(p,r,1.0);
     }
-    A(p,buffer);
+    A(buffer,p);
     double alpha = dotp/innerproduct(p,buffer);
-    axpy(p,b,alpha);
-    axpy(buffer,r,-alpha);
+    axpy(b,p,alpha);
+    axpy(r,buffer,-alpha);
     rdr = sqrt(innerproduct(r,r));
   }
   printf("%i iterations\n",i);

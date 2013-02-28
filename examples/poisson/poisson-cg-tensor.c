@@ -26,14 +26,14 @@ Matrix createPoisson1D(int M)
   return result;
 }
 
-void evaluate(void* ctx, const Matrix v, Matrix u)
+void evaluate(Matrix u, const Matrix v, void* ctx)
 {
   poisson_info_t* info = ctx;
-  MxM(info->A, v, u, 1.0, 0.0);
-  MxM(v, info->A, u, 1.0, 1.0);
+  MxM(u, info->A, v, 1.0, 0.0);
+  MxM(u, v, info->A, 1.0, 1.0);
 }
 
-typedef void(*eval_t)(void* ctx, const Matrix, Matrix);
+typedef void(*eval_t)(Matrix, const Matrix, void* ctx);
 
 void cg(eval_t A, Matrix b, double tolerance, void* ctx)
 {
@@ -42,25 +42,25 @@ void cg(eval_t A, Matrix b, double tolerance, void* ctx)
   Matrix buffer = createMatrix(b->rows, b->cols);
   double dotp = 1000;
   double rdr = dotp;
-  copyVector(b->as_vec,r->as_vec);
+  copyVector(r->as_vec,b->as_vec);
   fillVector(b->as_vec, 0.0);
   int i=0;
   while (i < b->as_vec->len && rdr > tolerance) {
     ++i;
     if (i == 1) {
-      copyVector(r->as_vec,p->as_vec);
+      copyVector(p->as_vec,r->as_vec);
       dotp = innerproduct(r->as_vec,r->as_vec);
     } else {
       double dotp2 = innerproduct(r->as_vec,r->as_vec);
       double beta = dotp2/dotp;
       dotp = dotp2;
       scaleVector(p->as_vec,beta);
-      axpy(r->as_vec,p->as_vec,1.0);
+      axpy(p->as_vec,r->as_vec,1.0);
     }
-    A(ctx,p,buffer);
+    A(buffer,p,ctx);
     double alpha = dotp/innerproduct(p->as_vec,buffer->as_vec);
-    axpy(p->as_vec,b->as_vec,alpha);
-    axpy(buffer->as_vec,r->as_vec,-alpha);
+    axpy(b->as_vec,p->as_vec,alpha);
+    axpy(r->as_vec,buffer->as_vec,-alpha);
     rdr = sqrt(innerproduct(r->as_vec,r->as_vec));
   }
   printf("%i iterations\n",i);
