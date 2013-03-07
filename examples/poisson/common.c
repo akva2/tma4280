@@ -25,9 +25,6 @@ void init_app(int argc, char** argv, int* rank, int* size)
 #ifdef HAVE_OPENMP
   int aquired;
   MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &aquired);
-  printf("aq %i %i %i %i %i\n", aquired, MPI_THREAD_SINGLE,
-                                MPI_THREAD_FUNNELED, MPI_THREAD_SERIALIZED,
-                                MPI_THREAD_MULTIPLE);
 #else
   MPI_Init(&argc, &argv);
 #endif
@@ -161,12 +158,56 @@ Matrix createMatrix(int n1, int n2)
   return result;
 }
 
+Matrix cloneMatrix(const Matrix A)
+{
+  Matrix result = createMatrix(A->rows, A->cols);
+#ifdef HAVE_MPI
+  result->as_vec->comm = A->as_vec->comm;
+  result->as_vec->comm_rank = A->as_vec->comm_rank;
+  result->as_vec->comm_size = A->as_vec->comm_size;
+#endif
+
+  return result;
+}
+
 #ifdef HAVE_MPI
 Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm)
 {
   int i;
   Matrix result = (Matrix)calloc(1, sizeof(matrix_t));
 
+  int topo_type;
+  MPI_Topo_test(*comm, &topo_type);
+  if (topo_type == MPI_CART) {
+    result->rows = n1;
+    result->cols = n2;
+    result->as_vec = malloc(sizeof(vector_t));
+    result->as_vec->comm = comm;
+    result->as_vec->len = n1*n2;
+    result->as_vec->stride = 1;
+    MPI_Comm_rank(*comm, &result->as_vec->comm_rank);
+    MPI_Comm_size(*comm, &result->as_vec->comm_size);
+    result->data = (double **)calloc(n2   ,sizeof(double *));
+    result->data[0] = (double  *)calloc(n1*n2,sizeof(double));
+    result->as_vec->data = result->data[0];
+    for (i=1; i < n2; i++)
+      result->data[i] = result->data[i-1] + n1;
+    result->col = malloc(n2*sizeof(Vector));
+    for (int i=0;i<n2;++i) {
+      result->col[i] = malloc(sizeof(vector_t));
+      result->col[i]->data = result->data[i];
+      result->col[i]->stride = 1;
+      result->col[i]->len = n1;
+    }
+    result->row = malloc(n1*sizeof(Vector));
+    for (int i=0;i<n1;++i) {
+      result->row[i] = malloc(sizeof(vector_t));
+      result->row[i]->data = result->data[0]+i;
+      result->row[i]->stride = n1;
+      result->row[i]->len = n2;
+    }
+    return result;
+  } 
   result->as_vec = createVectorMPI(N1*N2, 0, comm);
   int n12 = n1;
   if (n1 == -1)
@@ -285,7 +326,15 @@ void transposeMatrix(Matrix A, const Matrix B)
 
 double innerproduct(const Vector x, const Vector y)
 {
-  return ddot(&x->len, x->data, &x->stride, y->data, &y->stride);
+  double res=ddot(&x->len, x->data, &x->stride, y->data, &y->stride);
+#ifdef HAVE_MPI
+  if (x->comm_size > 1) {
+    double r2=res;
+    MPI_Allreduce(&r2, &res, 1, MPI_DOUBLE, MPI_SUM, *x->comm);
+  }
+#endif
+
+  return res;
 }
 
 double innerproduct2(const Vector x, const Vector y, int xdispl, int len)
@@ -393,7 +442,15 @@ double maxNorm(const Vector x)
 {
   // idamax is a fortran function, and the first index is 1
   // since indices in C are 0 based, we have to decrease it 
-  return fabs(x->data[idamax(&x->len, x->data, &x->stride)-1]);
+  double result = fabs(x->data[idamax(&x->len, x->data, &x->stride)-1]);
+#ifdef HAVE_MPI
+  if (x->comm_size > 1) {
+    double r2=result;
+    MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_MAX, *x->comm);
+  }
+#endif
+
+  return result;
 }
 
 void axpy(Vector y, const Vector x, double alpha)
@@ -409,6 +466,15 @@ void evalMesh(Vector u, const Vector x, const Vector y, function2 f)
       u->data[j*x->len+i] = f(x->data[i],y->data[j]);
 }
 
+void evalMeshDispl(Matrix u, const Vector x, const Vector y, function2 f,
+                   int xdispl, int ydispl)
+{
+#pragma omp parallel for schedule(static)
+  for (int j=0;j<u->cols-2;++j)
+    for (int i=0;i<u->rows-2;++i)
+      u->data[j+1][i+1] = f(x->data[i+xdispl],y->data[j+ydispl]);
+}
+
 void evalMesh2(Vector u, const Vector x, const Vector y,
                function2 f, double alpha)
 {
@@ -416,6 +482,15 @@ void evalMesh2(Vector u, const Vector x, const Vector y,
   for (int j=0;j<y->len;++j)
     for (int i=0;i<x->len;++i)
       u->data[j*x->len+i] += alpha*f(x->data[i],y->data[j]);
+}
+
+void evalMesh2Displ(Matrix u, const Vector x, const Vector y,
+                    function2 f, double alpha, int xdispl, int ydispl)
+{
+#pragma omp parallel for schedule(static)
+  for (int j=0;j<u->cols-2;++j)
+    for (int i=0;i<u->rows-2;++i)
+      u->data[j+1][i+1] += alpha*f(x->data[i+xdispl],y->data[j+ydispl]);
 }
 
 double poisson_source(double x, double y)
@@ -446,4 +521,51 @@ Matrix createPoisson2D(int M, double mu)
   }
 
   return A;
+}
+
+
+void collectMatrix(Matrix u)
+{
+#ifdef HAVE_MPI
+  int source, dest;
+  // south
+  MPI_Cart_shift(*u->as_vec->comm, 1, -1, &source, &dest);
+  MPI_Sendrecv(u->data[1]+1, u->rows-2, MPI_DOUBLE, dest, 0,
+               u->data[u->cols-1]+1, u->rows-2, MPI_DOUBLE, source, 0,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+
+  // north
+  MPI_Cart_shift(*u->as_vec->comm, 1, 1, &source, &dest);
+  MPI_Sendrecv(u->data[u->cols-2]+1, u->rows-2, MPI_DOUBLE, dest, 1,
+               u->data[0]+1, u->rows-2, MPI_DOUBLE, source, 1,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+
+  Vector sendBuf = createVector(u->cols-2);
+  Vector recvBuf = createVector(u->cols-2);
+
+  // west
+  MPI_Cart_shift(*u->as_vec->comm, 0, -1, &source, &dest);
+  if (dest != MPI_PROC_NULL)
+    copyVectorDispl(sendBuf, u->row[1], u->cols-2, 1);
+  MPI_Sendrecv(sendBuf->data, sendBuf->len, MPI_DOUBLE, dest, 2,
+               recvBuf->data, recvBuf->len, MPI_DOUBLE, source, 2,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+  if (source != MPI_PROC_NULL)
+    dcopy(&recvBuf->len, recvBuf->data, &recvBuf->stride,
+          u->row[u->rows-1]->data+u->rows, &u->rows);
+
+  // east
+  MPI_Cart_shift(*u->as_vec->comm, 0, 1, &source, &dest);
+  if (dest != MPI_PROC_NULL)
+    copyVectorDispl(sendBuf, u->row[u->rows-2], u->cols-2, 1);
+  MPI_Sendrecv(sendBuf->data, sendBuf->len, MPI_DOUBLE, dest, 2,
+               recvBuf->data, recvBuf->len, MPI_DOUBLE, source, 2,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+  if (source != MPI_PROC_NULL)
+    dcopy(&recvBuf->len, recvBuf->data, &recvBuf->stride,
+          u->row[0]->data+u->rows, &u->rows);
+
+  freeVector(sendBuf);
+  freeVector(recvBuf);
+#endif
 }

@@ -161,6 +161,13 @@ double maxNorm(const Vector u);
   */
 Matrix createMatrix(int n1, int n2);
 
+/** @brief Clone a matrix
+  * @param[in] A Matrix to clone
+  * @return The new matrix
+  * @details Note that only a subset of the parallel information is copied
+  */
+Matrix cloneMatrix(const Matrix A);
+
 #ifdef HAVE_MPI
 /** @brief Allocate a matrix split across a communicator
   * @param[in] n1 Number of local rows, -1 if they are to be split
@@ -299,6 +306,17 @@ typedef double(*function2)(double x, double y);
   */
 void evalMesh(Vector u, const Vector x, const Vector y, function2 f);
 
+/** @brief Evaluate a function over a mesh with displacement\f$u_{ij} = f(x_{i+\text{displ}}, y_{j+\text{displ}})\f$
+  * @param[out] u The matrix to store values in
+  * @param[in] x The x grid
+  * @param[in] y The y grid
+  * @param[in] f The function to evaluate
+  * @param[in] xdispl The x displacement
+  * @param[in] ydispl The y displacement
+  */
+void evalMeshDispl(Matrix u, const Vector x, const Vector y, function2 f,
+                   int xdispl, int ydispl);
+
 /** @brief Evaluate a function over a mesh, scale and add \f$u_{jN+i} = u_{jN+i}+\alpha f(x_i, y_j)\f$
   * @param[out] u The vector to store values in
   * @param[in] x The x grid
@@ -308,6 +326,18 @@ void evalMesh(Vector u, const Vector x, const Vector y, function2 f);
   */
 void evalMesh2(Vector u, const Vector x, const Vector y, 
                function2 f, double alpha);
+
+/** @brief Evaluate a function over a mesh, scale and add \f$u_{ij} = u_{ij}+\alpha f(x_{i+\text{displ}}, y_{j+\text{displ}})\f$
+  * @param[out] u The matrix to store values in
+  * @param[in] x The x grid
+  * @param[in] y The y grid
+  * @param[in] f The function to evaluate
+  * @param[in] alpha The scale factor
+  * @param[in] xdispl The x displacement
+  * @param[in] ydispl The y displacement
+  */
+void evalMesh2Displ(Matrix u, const Vector x, const Vector y, 
+                    function2 f, double alpha, int xdispl, int ydispl);
 
 /** @brief Poisson source function for \f$f(x,y) = x(x-1)\sin(2\pi y)\f$
   * @param[in] x The x coordinate
@@ -329,3 +359,5 @@ double exact_solution(double x, double y);
   * @return The matrix operator
   */
 Matrix createPoisson2D(int M, double mu);
+
+void collectMatrix(Matrix u);
