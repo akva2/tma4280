@@ -15,6 +15,14 @@ void cg(Matrix A, Vector b, double tolerance)
   double rdr = dotp;
   copyVector(r,b);
   fillVector(b, 0.0);
+  int* sizes, *displ;
+  splitVector(A->rows, max_threads(), &sizes, &displ);
+  Matrix* Ablock = malloc(max_threads()*sizeof(Matrix));
+#pragma omp parallel
+  {
+    Ablock[get_thread()] = subMatrix(A, displ[get_thread()], sizes[get_thread()],
+                                     0, A->cols);
+  }
   int i=0;
   while (i < b->len && rdr > tolerance) {
     ++i;
@@ -28,7 +36,10 @@ void cg(Matrix A, Vector b, double tolerance)
       scaleVector(p,beta);
       axpy(p,r,1.0);
     }
-    MxV(buffer, A, p, 1.0, 0.0);
+#pragma omp parallel
+    {
+      MxVdispl(buffer, Ablock[get_thread()], p, 1.0, 0.0, displ[get_thread()]);
+    }
     double alpha = dotp/innerproduct(p,buffer);
     axpy(b,p,alpha);
     axpy(r,buffer,-alpha);
@@ -38,6 +49,9 @@ void cg(Matrix A, Vector b, double tolerance)
   freeVector(r);
   freeVector(p);
   freeVector(buffer);
+  for (int i=0;i<max_threads();++i)
+    freeMatrix(Ablock[i]);
+  free(Ablock);
 }
 
 int main(int argc, char** argv)
@@ -61,13 +75,8 @@ int main(int argc, char** argv)
 
   double h = L/N;
 
-#ifdef HAVE_MPI
-  Matrix A = createPoisson2DMPI(M, 0.0);
-  Vector u = createVectorMPI(M*M, 1, &WorldComm);
-#else
   Matrix A = createPoisson2D(M, 0.0);
   Vector u = createVector(M*M);
-#endif
   Vector grid = createVector(M);
 
   for (int i=0;i<M;++i)

@@ -301,10 +301,10 @@ void MxVdispl(Vector y, const Matrix A, const Vector x,
         &x->stride, &beta, y->data+ydispl*y->stride, &y->stride);
 }
 
-void MxM(Matrix C, const Matrix A, const Matrix B, double alpha, double beta)
+void MxM(Matrix C, const Matrix A, const Matrix B, double alpha, double beta,
+         char transA, char transB)
 {
-  char trans='N';
-  dgemm(&trans, &trans, &A->rows, &B->cols, &A->cols, &alpha,
+  dgemm(&transA, &transB, &A->rows, &B->cols, &A->cols, &alpha,
         A->data[0], &A->rows, B->data[0], &A->cols, &beta, C->data[0], &C->rows);
 }
 

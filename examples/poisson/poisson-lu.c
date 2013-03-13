@@ -35,6 +35,7 @@ int main(int argc, char** argv)
   Vector u = createVector(M*M);
   evalMesh(u, grid, grid, poisson_source);
   scaleVector(u, h*h);
+  saveMatrixSerial("A.asc",A);
 
   double time = WallTime();
   int* ipiv=NULL;
@@ -52,6 +53,7 @@ int main(int argc, char** argv)
   freeVector(grid);
   freeMatrix(A);
   free(ipiv);
+
 
   close_app();
   return 0;

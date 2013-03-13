@@ -211,8 +211,11 @@ void MxVdispl(Vector y, const Matrix A, const Vector x,
   * @param[in] B The B matrix
   * @param[in] alpha The first scale factor
   * @param[in] beta The second scale factor
+  * @param[in] transA Transpose value for A
+  * @param[in] transB Transpose value for B
   */
-void MxM(Matrix C, const Matrix A, const Matrix B, double alpha, double beta);
+void MxM(Matrix C, const Matrix A, const Matrix B, double alpha, double beta,
+         char transA, char transB);
 
 /** @brief A matrix vector product with displacements: \f$C = \alpha AB +\beta C\f$
   * @param C The C matrix

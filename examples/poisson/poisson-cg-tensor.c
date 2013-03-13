@@ -29,8 +29,8 @@ Matrix createPoisson1D(int M)
 void evaluate(Matrix u, const Matrix v, void* ctx)
 {
   poisson_info_t* info = ctx;
-  MxM(u, info->A, v, 1.0, 0.0);
-  MxM(u, v, info->A, 1.0, 1.0);
+  MxM(u, info->A, v, 1.0, 0.0, 'N', 'N');
+  MxM(u, v, info->A, 1.0, 1.0, 'N', 'N');
 }
 
 typedef void(*eval_t)(Matrix, const Matrix, void* ctx);

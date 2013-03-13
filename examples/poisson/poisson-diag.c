@@ -58,15 +58,15 @@ int main(int argc, char** argv)
   scaleVector(u->as_vec, h*h);
 
   double time = WallTime();
-  MxM(ut, u, Q, 1.0, 0.0);
-  MxM(u, Q, ut, 1.0, 0.0);
+  MxM(ut, u, Q, 1.0, 0.0, 'N', 'N');
+  MxM(u, Q, ut, 1.0, 0.0, 'N', 'N');
 
   for (int j=0; j < M; j++)
     for (int i=0; i < M; i++)
       u->data[j][i] /= lambda->data[i]+lambda->data[j];
 
-  MxM(ut, u, Q, 1.0, 0.0);
-  MxM(u, Q, ut, 1.0, 0.0);
+  MxM(ut, u, Q, 1.0, 0.0, 'N', 'N');
+  MxM(u, Q, ut, 1.0, 0.0, 'N', 'N');
 
   evalMesh2(u->as_vec, grid, grid, exact_solution, -1.0);
   double max = maxNorm(u->as_vec);
