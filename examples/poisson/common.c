@@ -78,6 +78,9 @@ Vector createVector(int len)
   result->data = calloc(len, sizeof(double));
   result->len = len;
   result->stride = 1;
+  result->own_data = 1;
+  result->comm_rank = 0;
+  result->comm_size = 1;
 
   return result;
 }
@@ -104,10 +107,13 @@ Vector createVectorMPI(int globLen, int allocdata, MPI_Comm* comm)
   MPI_Comm_rank(*comm, &result->comm_rank);
   splitVector(globLen, result->comm_size, &result->sizes, &result->displ);
   result->len = result->sizes[result->comm_rank];
-  if (allocdata)
+  if (allocdata) {
     result->data = calloc(result->len, sizeof(double));
-  else
+    result->own_data = 1;
+  } else {
     result->data = NULL;
+    result->own_data = 0;
+  }
   result->globLen = globLen;
 
   return result;
@@ -116,11 +122,8 @@ Vector createVectorMPI(int globLen, int allocdata, MPI_Comm* comm)
 
 void freeVector(Vector vec)
 {
-  free(vec->data);
-#ifdef HAVE_MPI
-  if (vec->comm)
-    MPI_Comm_free(vec->comm);
-#endif
+  if (vec->own_data)
+    free(vec->data);
   free(vec->displ);
   free(vec->sizes);
   free(vec);
@@ -140,12 +143,14 @@ Matrix createMatrix(int n1, int n2)
   result->as_vec->data = result->data[0];
   result->as_vec->len = result->as_vec->globLen = n1*n2;
   result->as_vec->stride = 1;
+  result->as_vec->own_data = 0;
   result->col = malloc(n2*sizeof(Vector));
   for (int i=0;i<n2;++i) {
     result->col[i] = malloc(sizeof(vector_t));
     result->col[i]->len = n1;
     result->col[i]->data = result->data[i];
     result->col[i]->stride = 1;
+    result->col[i]->own_data = 0;
   }
   result->row = malloc(n1*sizeof(Vector));
   for (int i=0;i<n1;++i) {
@@ -153,6 +158,7 @@ Matrix createMatrix(int n1, int n2)
     result->row[i]->len = n2;
     result->row[i]->data = result->data[0]+i;
     result->row[i]->stride = n1;
+    result->row[i]->own_data = 0;
   }
 
   return result;
@@ -185,6 +191,7 @@ Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm)
     result->as_vec->comm = comm;
     result->as_vec->len = n1*n2;
     result->as_vec->stride = 1;
+    result->as_vec->own_data = 0;
     MPI_Comm_rank(*comm, &result->as_vec->comm_rank);
     MPI_Comm_size(*comm, &result->as_vec->comm_size);
     result->data = (double **)calloc(n2   ,sizeof(double *));
@@ -198,6 +205,7 @@ Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm)
       result->col[i]->data = result->data[i];
       result->col[i]->stride = 1;
       result->col[i]->len = n1;
+      result->col[i]->own_data = 0;
     }
     result->row = malloc(n1*sizeof(Vector));
     for (int i=0;i<n1;++i) {
@@ -205,6 +213,7 @@ Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm)
       result->row[i]->data = result->data[0]+i;
       result->row[i]->stride = n1;
       result->row[i]->len = n2;
+      result->row[i]->own_data = 0;
     }
     return result;
   } 
@@ -222,6 +231,7 @@ Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm)
   result->data = (double **)calloc(n2   ,sizeof(double *));
   result->data[0] = (double  *)calloc(n1*n2,sizeof(double));
   result->as_vec->data = result->data[0];
+  result->as_vec->own_data = 0;
   for (i=1; i < n2; i++)
     result->data[i] = result->data[i-1] + n1;
   result->col = malloc(n2*sizeof(Vector));
@@ -362,6 +372,13 @@ void saveVectorSerial(char* name, const Vector x)
   for (int i=0;i<x->len;++i)
     fprintf(f,"%f ",x->data[i]);
   fclose(f);
+}
+
+void printMatrix(const Matrix x)
+{
+  for (int i=0;i<x->rows;++i)
+    for(int j=0;j<x->cols;++j)
+      printf("%f%c",x->data[j][i], j==x->cols-1?'\n':' ');
 }
 
 void saveMatrixSerial(char* name, const Matrix x)
@@ -552,7 +569,7 @@ void collectMatrix(Matrix u)
                *u->as_vec->comm, MPI_STATUS_IGNORE);
   if (source != MPI_PROC_NULL)
     dcopy(&recvBuf->len, recvBuf->data, &recvBuf->stride,
-          u->row[u->rows-1]->data+u->rows, &u->rows);
+          u->data[1]+u->rows-1, &u->rows);
 
   // east
   MPI_Cart_shift(*u->as_vec->comm, 0, 1, &source, &dest);
@@ -563,7 +580,55 @@ void collectMatrix(Matrix u)
                *u->as_vec->comm, MPI_STATUS_IGNORE);
   if (source != MPI_PROC_NULL)
     dcopy(&recvBuf->len, recvBuf->data, &recvBuf->stride,
-          u->row[0]->data+u->rows, &u->rows);
+          u->data[1], &u->rows);
+
+  freeVector(sendBuf);
+  freeVector(recvBuf);
+#endif
+}
+
+void ddsum(Matrix u)
+{
+#ifdef HAVE_MPI
+  int source, dest;
+  // south
+  MPI_Cart_shift(*u->as_vec->comm, 1, -1, &source, &dest);
+  MPI_Sendrecv(u->data[1], u->rows, MPI_DOUBLE, dest, 0,
+               u->data[u->cols-1], u->rows, MPI_DOUBLE, source, 0,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+  if (source != MPI_PROC_NULL)
+    axpy(u->col[u->cols-2],u->col[u->cols-1], 1.0);
+
+  // north
+  MPI_Cart_shift(*u->as_vec->comm, 1, 1, &source, &dest);
+  MPI_Sendrecv(u->data[u->cols-2], u->rows, MPI_DOUBLE, dest, 1,
+               u->data[0], u->rows, MPI_DOUBLE, source, 1,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+  if (source != MPI_PROC_NULL)
+    axpy(u->col[1],u->col[0], 1.0);
+
+  Vector sendBuf = createVector(u->cols);
+  Vector recvBuf = createVector(u->cols);
+
+  // west
+  MPI_Cart_shift(*u->as_vec->comm, 0, -1, &source, &dest);
+  if (dest != MPI_PROC_NULL)
+    copyVector(sendBuf, u->row[1]);
+  MPI_Sendrecv(sendBuf->data, sendBuf->len, MPI_DOUBLE, dest, 2,
+               recvBuf->data, recvBuf->len, MPI_DOUBLE, source, 2,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+  if (source != MPI_PROC_NULL)
+    axpy(u->row[u->rows-2], recvBuf, 1.0);
+
+  // east
+  MPI_Cart_shift(*u->as_vec->comm, 0, 1, &source, &dest);
+  if (dest != MPI_PROC_NULL)
+    copyVector(sendBuf, u->row[u->rows-2]);
+  MPI_Sendrecv(sendBuf->data, sendBuf->len, MPI_DOUBLE, dest, 2,
+               recvBuf->data, recvBuf->len, MPI_DOUBLE, source, 2,
+               *u->as_vec->comm, MPI_STATUS_IGNORE);
+  if (source != MPI_PROC_NULL)
+    axpy(u->row[1], recvBuf, 1.0);
 
   freeVector(sendBuf);
   freeVector(recvBuf);

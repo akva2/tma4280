@@ -24,6 +24,7 @@ typedef struct {
   int comm_rank;  //!< Rank in communicator
   int* displ;     //!< Vector displacements
   int* sizes;     //!< Vector sizes
+  int own_data;   //!< Whether or not we allocate our data
 } vector_t;
 
 typedef vector_t* Vector; //!< Convenience typedef
@@ -291,6 +292,11 @@ void saveVectorSerial(char* name, const Vector x);
   */
 void saveMatrixSerial(char* name, const Matrix x);
 
+/** @brief Print a matrix to screen
+  * @param[in] x Matrix to print
+  */
+void printMatrix(const Matrix x);
+
 /** @brief Save a parallel vector to an asc file
   * @param[in] name The file name
   * @param[in] x Vector to save
@@ -364,3 +370,5 @@ double exact_solution(double x, double y);
 Matrix createPoisson2D(int M, double mu);
 
 void collectMatrix(Matrix u);
+
+void ddsum(Matrix u);

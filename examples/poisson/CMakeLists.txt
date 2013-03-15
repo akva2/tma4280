@@ -72,13 +72,11 @@ IF(NOT MPI_FOUND)
   ADD_APP(poisson-cg)
   ADD_APP(poisson-cg-local)
   ADD_APP(poisson-cg-tensor)
+  ADD_APP(poisson-gs-matrixless)
+  ADD_APP(poisson-cg-matrixless)
 ENDIF()
 ADD_APP(poisson-gj-matrixless)
-IF(NOT MPI_FOUND)
-ADD_APP(poisson-gs-matrixless)
-ADD_APP(poisson-cg-matrixless)
 ADD_APP(poisson-pcg)
-ENDIF()
 
 # For generating the doxy
 ADD_CUSTOM_TARGET(doc doxygen 

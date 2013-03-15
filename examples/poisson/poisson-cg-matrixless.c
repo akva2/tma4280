@@ -89,7 +89,6 @@ int main(int argc, char** argv)
 
   Vector u = createVector(M*M);
   evalMesh(u, grid, grid, poisson_source);
-  fillVector(u, 1.0);
   scaleVector(u, h*h);
 
   double time = WallTime();
