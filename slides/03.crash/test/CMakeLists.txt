@@ -1,0 +1,5 @@
+project(test)
+enable_language(C)
+cmake_minimum_required(VERSION 2.6)
+set(SRCS test.c)
+add_executable(test ${SRCS})

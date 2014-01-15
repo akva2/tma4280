@@ -1,0 +1,345 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{rotating}
+\usepackage{graphicx}
+\usepackage{multimedia}
+\usepackage{listings}
+
+\useinnertheme[shadow=true]{rounded}
+\useoutertheme{shadow}
+\usecolortheme{orchid}
+\usecolortheme{whale}
+
+\mode<presentation>
+
+\newcommand{\dif}{\, \mathrm{d}}
+\newcommand{\diff}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\partdiff}[2]{\frac{\partial #1}{\partial #2}}
+
+\title{TMA4280 - Introduction to supercomputing}
+\subtitle{Bash, compilers, make, cmake, scripting}
+\author{Arne Morten Kvarving}
+\institute{NTNU and SINTEF ICT}
+\date{January 2014}
+
+\begin{document}
+
+\maketitle
+\begin{frame}\frametitle{The shell - your best friend}
+  \begin{itemize}
+    \item Computers are commonly operated using graphical user interfaces.
+    \item Supercomputers are not common computers.
+    \item Some systems have web interfaces for dispatching jobs - ``cloud computing''.
+    \item These are only frontends to a shell based system.
+    \item Almost all (probably 99\%) of these systems are based on some Unix (mostly Linux today).
+    \item Many different shells exists - csh, tcsh, sh,  $\cdots$.
+    \item The most common shell on Linux is the Bourne Again SHell - \emph{bash}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Bash}
+  \begin{itemize}
+    \item The (bash) shell is very powerful - built-in scripting.
+    \item Scripts used for jobs on the supercomputer facilities.
+    \item Basic shell usage will be covered.
+    \item Some basic utilities available on the shell will be covered.
+    \item Compiling software on the shell will be covered, by hand as well as automated.
+    \item Some basics of shell scripting will be covered.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Bash - basic navigation}
+  \begin{itemize}
+    \item[ls] - LiSt \\
+      This is used to list the files in a directory.
+    \item[cd] - Change Directory \\
+      This is used to navigate around in the directory structure - e.g. 'cd foo'.
+    \item[mkdir] - MaKe DIRectory \\
+      This is used to create a new directory.
+    \item[rm] - ReMove \\
+      This is used to delete a file or directory.
+    \item[mv] - MoVe \\
+      This is used to move (rename) a file or directory.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Bash - long live lazyness}
+  \begin{itemize}
+    \item All commands have readily available documentation.
+    \item \emph{man foo} or \emph{info foo} documents parameters and explains usage scenarios.
+    \item Bash has \emph{tab completion} - whenever a command/file/directory is qualified hit tab to 
+          have bash complete it to lessen the amount of typing required.
+    \item Use the \emph{arrow keys} to recall previously executed commands.
+    \item Use \emph{ctrl-r} to search in previously executed commands (anywhere, not just the start).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Bash - handy utilities}
+  \begin{itemize}
+    \item[cat] This is used to show the contents of a file. \\
+      cat test.c
+    \item[less] This is used to show the contents of a file with pagenation. \\
+      less test.c
+    \item[find] You can use the \emph{find} command to locate a lost file. \\
+      find . -name "*.c"
+    \item[grep] You can use the \emph{grep} command to search for text in a file. \\
+      grep "foo" test.c
+    \item[sed] You can use the \emph{sed} command to search and replace text in a file.
+      sed -e 's/foo/bar/g' -i test.c
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Bash - output redirection}
+  \begin{itemize}
+    \item Sometimes we want to combine several utilities, in the sense that the output from
+          one command is the input to another one.
+    \item This can be achieved through \emph{pipes}. \\
+          cat test.c $\vert$ grep "foo" $\vert$ awk - F ' ' '$\{print\ \$2\}$'
+    \item Sometimes we want to redirect the output of a program to a file.
+    \item This can be achieved through $>$. \\
+        grep "foo" test.c $>$ output.txt
+    \item You can append to the output file through $>>$. \\
+        grep "bar" test.c $>>$ output.txt
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Bash - compiling software}
+  \begin{itemize}
+    \item Software is compiled by invoking a compiler, and finally a linker, on the shell.
+    \item Compiler commands vary across systems.
+    \item Compiler commands depend on the language used.
+    \item However, there are a lot of similarities as well.
+    \item We here consider Linux systems using the GNU compilers.
+    \item The basic approach is:
+      \begin{itemize}
+        \item Compile sources into object (.o) files.
+        \item Link objects into a library (.a/.so) or an executable.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our first C program}
+  \begin{itemize}
+    \item We first consider compiling a simple hello world program, sources given below.
+      \lstinputlisting[language=C]{../../examples/crash/hello.c}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our first C program contd.}
+  \begin{itemize}
+    \item We only have a single source file.
+    \item We can then do the compilation and linking in a single command. \\
+      gcc -o hello hello.c
+    \item We might want to turn on compiler optimizations. \\
+      gcc -o hello hello.c -O2
+    \item We might want to include debugging info. \\
+      gcc -o hello hello.c -g
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our first Fortran program}
+  \begin{itemize}
+    \item We first consider compiling a simple hello world program, sources given below.
+      \lstinputlisting[language=Fortran]{../../examples/crash/hello.f}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our first Fortran program contd.}
+  \begin{itemize}
+    \item We only have a single source file.
+    \item We do not want to be bothered by the arcane formatting rules of Fortran, thus -ffree-form is required.
+    \item Alternatively, we can call the file hello.f90 to compile with Fortran90 standards.
+    \item We can then do the compilation and linking in a single command. \\
+      gfortran -ffree-form -o hello hello.f
+    \item We might want to turn on compiler optimizations. \\
+      gfortran -ffree-form -o hello hello.f -O2
+    \item We might want to include debugging info. \\
+      gfortran -ffree-form -o hello hello.f -g
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our second C program}
+  \begin{itemize}
+    \item It is impractical and unadvisable to have all sources of a complex program in a single source file.
+    \item We here consider a more involved hello world program.
+    \item We put the printing in a separate source file.
+      \lstinputlisting[language=C]{../../examples/crash/utils.c}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our second C program contd.}
+  \begin{itemize}
+    \item We have to write a \emph{header file} so we can use these functions in another source.
+      \lstinputlisting[language=C]{../../examples/crash/utils.h}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our second C program contd.}
+  \begin{itemize}
+    \item Finally we have the main program
+      \lstinputlisting[language=C,basicstyle=\tiny]{../../examples/crash/hello2.c}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our second C program contd.}
+  \begin{itemize}
+    \item In theory we can compile in one step as we did for the first program. \\
+      gcc -o hello2 hello2.c utils.c
+    \item Problem with this approach is that all sources are recompiled every time, even
+          if nothing changed in some of them.
+    \item Better approach: First sources are compiled into objects, then objects are linked together. \\
+      gcc -c -o hello2.o hello2.c \\
+      gcc -c -o utils.o utils.c \\
+      gcc -o hello2 hello2.o utils.o
+    \item Same approach for Fortran programs.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our third C program}
+  \begin{itemize}
+    \item Often we want to share sources between several programs.
+    \item The most convenient way to do so is to link objects into a library, and then reuse the library.
+    \item We here consider an even more involved hello world program.
+    \item We put the printing in a separate source file (plus a header).
+      \lstinputlisting[language=C]{../../examples/crash/utils.c}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our third C program contd.}
+  \begin{itemize}
+    \item We put another printing in another source file (plus a header).
+      \lstinputlisting[language=C]{../../examples/crash/utils2.c}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our third C program contd.}
+  \begin{itemize}
+    \item A main program
+      \lstinputlisting[language=C,basicstyle=\tiny]{../../examples/crash/hello3.c}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our third C program contd.}
+  \begin{itemize}
+    \item We link the printing functions into a library. \\
+      gcc -c -o utils.o utils.c \\
+      gcc -c -o utils2.o utils2.c \\
+      ar r libutils.a utils.o utils2.o
+    \item Finally we build the main program. \\
+      gcc -c -o hello3.o hello3.c \\
+      gcc -o hello3 hello3.o libutils.a 
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our third C program contd.}
+  \begin{itemize}
+    \item Another main program
+      \lstinputlisting[language=C,basicstyle=\tiny]{../../examples/crash/hello4.c}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Our third C program contd.}
+  \begin{itemize}
+    \item We can then link second main program against the same library. \\
+      gcc -c -o hello4.o hello4.c \\
+      gcc -o hello4 hello4.o libutils.a 
+    \item A more common way to link against libraries; \\
+      gcc -o hello4 hello4.o -L. -lutils
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Automating builds}
+  \begin{itemize}
+    \item Typing all these compilation, archiving and linking commands is tedious and error prone.
+    \item There are tools to handle this - a common choice is the (GNU) \emph{make} system.
+    \item We have to write a Makefile with instructions. These are text files with a particular syntax.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Automating builds contd.}
+  \lstinputlisting[language=make,basicstyle=\tiny]{../../examples/crash/Makefile}
+\end{frame}
+
+\begin{frame}\frametitle{However..}
+  \begin{itemize}
+    \item Make does not take care of build dependencies, that is locating required libraries etc.
+    \item Make does not take care of setting up compiler flags. These are often machine specific, thus 
+          hardcoding them is not a good idea.
+    \item There exists other tools to handle this.
+    \item Traditionally: GNU autotools has been used a lot.
+    \item Very powerful, very confusing, steep learning curve.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{CMake}
+  \begin{itemize}
+    \item CMake is easier to grasp than autotools.
+    \item The C stands for \emph{cross platform}, so the idea is that
+          you generate build systems for the different platform based on a common script.
+    \item CMake can generate Makefiles for unix, xcode projects for OSX and 
+           .vcxproj files for visual studio.
+    \item Simplifies cross platform development since you do not have to manually maintain build systems.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Anatomy of a CMake script}
+\lstinputlisting{test/CMakeLists.txt}
+\end{frame}
+
+\begin{frame}\frametitle{Handling extra compiler flags}
+\lstinputlisting{test/CMakeLists-openmp.txt}
+\end{frame}
+
+\begin{frame}\frametitle{Optional flags}
+\lstinputlisting{test/CMakeLists-openmpopt.txt}
+\end{frame}
+
+\begin{frame}\frametitle{Out of tree builds}
+\begin{itemize}
+  \item Often, it is useful to have several configurations of a program easily available.
+  \item Examples of this can be with and without optimizations, with and without OpenMP etc.
+  \item CMake makes this very easy, as you can do out-of-tree builds.
+  \item This is achieved by
+    \lstinputlisting{test/oot.sh}
+\end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Shell scripting}
+  \begin{itemize}
+    \item A common task when developing/using scientific software is analyzing some
+      output from a program, checking for correctness, performance etc.
+    \item Modifying the sources for these tasks are often tedious and error prone.
+    \item In fact, it can even be impossible if you are using software you do not
+      have the sources for.
+    \item Shell scripts are very useful for such tasks.
+    \item Instead of modifying the program, we write a script which repeatedly
+      executes the program and captures the interesting output.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Shell scripting contd.}
+  \begin{itemize}
+    \item We here consider a simple little program which, given a number of repetitions
+      and a vector length performs the dotproduct of random vectors.
+    \item The program prints the elapsed time to stdout.
+    \item We want to analyze how the algorithm scales by repeatedly calling
+      the program and catching the given runtime.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Shell scripting contd.}
+  \lstinputlisting[language=C,basicstyle=\Tiny]{../../examples/crash/timing.c}
+\end{frame}
+
+\begin{frame}\frametitle{Shell scripting contd.}
+  \lstinputlisting[language=bash,basicstyle=\tiny]{../../examples/crash/approxflop}
+  \begin{itemize}
+    \item The results.asc file can be readily loaded into Matlab/Octave for analysis.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{The full hello suite}
+\lstinputlisting{../../examples/crash/CMakeLists.txt}
+\end{frame}
+
+\end{document}

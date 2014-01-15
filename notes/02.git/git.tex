@@ -1,0 +1,203 @@
+\documentclass[twoside, 11pt, a4paper]{article}
+\usepackage[latin1]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amsfonts,amssymb,graphicx,parskip}
+\usepackage[T1]{fontenc}
+%\usepackage{fourierx} % eller lmodern
+\usepackage{subfigure}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{array}
+\restylefloat{figure}
+\usepackage{listings}
+
+% for debug utskrift
+\newcommand{\debug}[1]{\texttt{#1}}
+% for ingen utskrift av kommentarer/debug
+%\newcommand{\debug}[1]{}
+
+\DeclareMathOperator{\erf}{erf}
+\DeclareMathOperator{\erfc}{erfc}
+\DeclareMathOperator{\eps}{\epsilon}
+\newcommand{\dee}{\mathrm{d}}
+
+\begin{document}
+\LARGE
+\begin{center}
+TMA4280: Introduction to Supercomputing
+\end{center}
+\vspace{1in}
+
+\begin{center}
+{Using GIT to syncronize code between multiple machines}
+\end{center}
+
+\Large
+\vspace{0.5in}
+\begin{center}
+Spring 2014
+\end{center}
+
+\vspace{0.5in}
+
+\large
+
+\newpage
+The scope of this document is to explain the basic mechanisms of GIT.
+GIT is a complex tool, using it to its full power can take quite some 
+time to learn. Something crucial may have been missed while 
+attempting to boil it down to basics. There is a whole internet full of guides
+out there and you are encouraged to supplement these ramblings with more verbose
+tutorials and articles. Also, please do not hesitate to ask during lectures
+or breaks; I love it when people talk GIT to me.
+
+\subsection*{Installing GIT}
+Start by installing git on your laptop; on ubuntu you can do this through
+\emph{sudo apt-get install git}.
+
+\subsection*{Setting up a GIT repository}
+You can set up a GIT directory in two ways. You either clone a remote
+repository, or by initializing a new empty GIT.
+In either case you end up on a \emph{branch} called \emph{master} by default.
+
+\subsubsection*{Cloning a remote repository}
+You do this through \\
+\begin{center}\emph{git clone <url>}\end{center}
+Here <url> can be a local directory or a remote directory.
+
+\subsubsection*{Setting up a new GIT}
+Change to the directory you want to set up the GIT in and type \\
+\begin{center}\emph{git init .}\end{center}
+As far as GIT is concerned, adding files already existing 
+locally is handled as a change to the file where everything was changed
+(see further down). You just want to add source code, not files generated
+by the build system or the compiler such as object files, libraries,
+executables or scripts.
+
+\subsection*{Layout of a GIT}
+A GIT is divided in two parts; the repository information and your
+local working tree. The first contains information about all the individual
+commits, commit message, and branches (a sequence of commits) that is
+recorded. This is stored in a folder called \emph{.git} in the root of the
+repository. The second part is your local copy of the files in the GIT.
+
+You can make a \emph{bare} clone of a GIT. This is a directory that only
+contains the repository information, i.e. only the \emph{.git} folder of a
+normal clone, and no local working tree. You do this through
+\begin{center}\emph{git clone $--bare$ <url>}\end{center}
+You can also initialize a bare, empty repository using
+\begin{center}\emph{git init $--bare$ .}\end{center}
+
+\subsection*{Keeping track of changes}
+You can see what changes you have made to your local
+working directory through
+\begin{center}\emph{git diff}\end{center}
+If you just want to see which files, but not the changes themself
+you can use
+\begin{center}\emph{git status}\end{center}
+This is in general quite useful, it can show more things such
+as which changes are marked for commit.
+
+\subsubsection*{Marking my changes for commit}
+\begin{center}\emph{git add <file>}\end{center}
+This marks the change to these files for commit, 
+but they are not yet recorded in the GIT. To do that we have
+to \emph{commit} the changes.
+\subsubsection*{Commiting changes to a GIT}
+You commit changes to the GIT through \\
+\begin{center}\emph{git commit}\end{center}
+This will open a text editor where you can enter a commit message.
+You can control which editor by adding \\
+\begin{center}\emph{export EDITOR=myfav}\end{center}
+to your \emph{$\sim$/.bashrc} file. Alternatively, you can specify the
+commit message on the command line by doing
+\begin{center}\emph{git commit -m "my message"}\end{center}
+You can quickly commit all changes to all files tracked by
+the GIT through \\
+\begin{center}\emph{git commit -a}\end{center}
+The two can be combined.
+\subsection*{Keeping track of commits}
+You can see the log of commits through
+\begin{center}\emph{git log}\end{center}
+You can the changes in an individual commit through
+\begin{center}\emph{git show <revision>}\end{center}
+The revision can be found using git log. Alternatively, you
+have a few shortcuts. If you omit the revision, the last commit
+in the branch will be shown. If you want to show the previous commit,
+you can use
+\begin{center}\emph{git show HEAD$\sim$1}\end{center}
+The number can be increased.
+
+\subsection*{Working with remote repositories}
+A remote repository is a clone of this repository. Since GIT is
+a distributed revision control system, you can clone a clone, and
+it still contains all the information.
+
+\subsubsection*{Adding a remote repository}
+You tell GIT where the remote repository is located through \\
+\begin{center}\emph{git remote add <name> <url>}\end{center}
+If you initialize a repository through cloning another, the
+repository you cloned will be registered as a remote named \emph{origin}.
+If you started from scratch, there will be no remotes by default.
+\subsection*{Moving changes between GIT remotes}
+You can move changes between GITs in two ways; either you \emph{pull}
+a branch from a remote or you \emph{push} a branch to a remote.
+
+\subsubsection*{Pushing changes}
+You can push changes to a remote through \\
+\begin{center}\emph{git push <name> <branch>}\end{center}
+If you omit the branch name, all branches will be pushed.
+If changes you have done conflict with changes done in the remote
+GIT, your push will be denied. You then have to \emph{pull} from the remote.
+A push will also be denied if you push to a remote with a local working tree,
+and you try to push to the branch currently checked out on the remote.
+
+\subsubsection*{Pulling changes}
+You can pull changes from a remote through \\
+\begin{center}\emph{git pull $--$rebase <name> <branch>}\end{center}
+If you omit the branch name, all branches will be pulled.
+Please do not forget the rebase, or you can get yourself in trouble.
+The pull model is more involved to explain,
+and deemed outside the scope of this document.
+
+If there are conflicts you have to resolve these.
+
+\subsubsection*{Resolving conflicts}
+If there are conflicts that GIT cannot resolve, you to step up.
+A conflict is when GIT cannot resolve how to combine changes from
+your local GIT and the remote GIT you are pulling from.
+To see which files are in conflict you can use \emph{git status}.
+Where there were conflicts you will have something that
+looks like \lstinputlisting{conflict}
+The first line is a starting marker. This is followed by lines that are
+in conflict, these are from the local repository. Then a ===== marker,
+followed by the lines in conflict from the remote repository. Finally
+an ending marker and the revision from the remote. Change it into
+what you want it to be and save the file. Remember that there may
+be multiple blocks in conflict!
+
+Add your changes through \emph{git add}, and continue the rebase
+through \\
+\begin{center}\emph{git rebase $--$continue}\end{center}
+\newpage
+%\subsection*{Kongull}
+%When working on a remote machine, the two machines need to be able to
+%find each other. This is complicated for laptops on roaming wireless
+%connections as they do not have a static host name. Kongull, however,
+%does have a static host name. For this reason it is easiest to only have
+%Kongull as a remote on your laptop, and not the other way around.
+
+%To avoid the restrictions on which branches you can push (see earlier
+%discussion), we want to stick a bare clone in-between. This role
+%can alternatively be served by a GIT hosted on a free service such
+%as github.com.
+
+%Here follows commands to setup this configuration on Kongull. You
+%have to replace the placeholders.
+%\lstinputlisting{kongull-setup-git}
+%To move commits from your laptop to Kongull, you first push
+%to the 'kongull' remote on your laptop, and then pull from 'origin' on Kongull
+%in the \emph{myrepo} folder. To move changes the other way around, you
+%first push to 'origin' on Kongull, and then pull from 'kongull' on your laptop.
+
+\end{document}

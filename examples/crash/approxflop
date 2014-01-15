@@ -1,0 +1,16 @@
+#!/bin/bash
+
+totaltime=0
+rm -f tmp.asc
+for times in `seq 100 100 5000`
+do
+  for N in `seq 1000 1000 20000`
+  do
+    ELAPSED=`./timing $times $N | grep Used | awk -F ' ' '{print $2}'`
+    let flop=N*times*2
+    echo "$flop $ELAPSED" >> tmp.asc
+  done
+done
+
+sort -n tmp.asc > results.asc
+rm -f tmp.asc
