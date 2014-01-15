@@ -1,6 +1,8 @@
 tmpdir := tmp
 
-all: curriculum.pdf trends.pdf thetool.pdf crash.pdf multi.pdf
+FILES := curriculum.pdf trends.pdf thetool.pdf crash.pdf multi.pdf mpi.pdf
+
+all: $(FILES)
 
 $(tmpdir):
 	mkdir tmp
@@ -20,5 +22,8 @@ crash.pdf: | $(tmpdir)
 multi.pdf: | $(tmpdir)
 	make -C 04.multi
 
+mpi.pdf: | $(tmpdir)
+	make -C 05.mpi
+
 clean:
-	rm -rf tmp curriculum.pdf trends.pdf thetool.pdf crash.pdf multi.pdf
+	rm -rf tmp $(FILES)
