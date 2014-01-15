@@ -1,0 +1,928 @@
+\documentclass[11pt]{article}
+\bibliographystyle{plain}
+\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
+\usepackage{amsmath,amssymb} 
+\usepackage{epsfig,epsf,subfigure}
+\geometry{a4paper} 
+
+
+%\documentclass{article}
+
+\begin{document}
+ 
+\LARGE
+\begin{center}
+TMA4280: Introduction to Supercomputing
+\end{center}
+\vspace{1in}
+
+\begin{center}
+{\bf Multiprocessor systems}
+\end{center}
+
+\Large
+\vspace{0.5in}
+\begin{center}
+January 2011 \\
+Revised January 2014
+\end{center}
+
+\vspace{0.5in}
+
+\begin{center}
+\copyright Einar M. R{\o}nquist \\
+Department of Mathematical Sciences\\
+NTNU, N-7491 Trondheim, Norway\\
+All rights reserved
+\end{center}
+
+\large
+
+\newpage
+
+\section{Supercomputing}
+
+Supercomputing represents the high performance segment of the overall computing market. 
+This segment has traditionally been driven by grand challenge problems 
+in science and engineering. This is still the situation, although new areas and 
+new applications are constantly being added to the list of problems 
+where supercomputing is necessary (or at least highly desirable). 
+
+A strong motivation for using supercomputing is the possibility of performing
+larger and more realistic simulations, e.g., by solving more detailed mathematical 
+models in science and engineering. Hence, the design of the largest computing 
+systems have traditionally be driven by challenges in science and engineering. 
+
+About 30-40 years ago, supercomputers were typically specially designed 
+vector processors capable of performing operations on vector data. 
+A single instruction could operate on multiple data elements (vectors) at once,
+and the hardware comprised custom-made chips. Because of the low production 
+volume and the costly development effort, each supercomputer was very expensive. 
+
+Supercomputers in the 80's and 90's also used fast, expensive, custom-made chips, 
+and combined a few of these in a multiprocess context. 
+However, starting in the late 80's, microprocessor-based supercomputers 
+became more and more popular. These systems were also called 
+massively parallel processors (MPPs) because they used many more processors
+than traditional vector supercomputers. The advantage of the 
+microprocessor-based supercomputers was the use of standard, 
+off-the-shelf  microprocessors
+instead of using costly, custom-made chips. 
+The supercomputer market today is dominated by MPP systems. 
+A supercomputer system typically combines thousands of processors. 
+Some of the largest systems comprise hundreds of thousands of processors. 
+
+Supercomputing is very resource demanding in terms of
+floating point operations, memory and storage requirement, 
+as well as visualization capabilities. 
+Thus, some of the important challenges related to the development and use of a 
+multiprocessor system concern: 
+\begin{enumerate}
+\item communication between the processors\\
+(network topology, memory access, programming models); 
+\item development of suitable computational methods or algorithms\\
+(e.g., domain decomposition algorithms);
+\item scalability (both in terms of hardware and algorithms); 
+\item handling of large volumes of data (storage and visualization). 
+\end{enumerate}
+
+\newpage
+We add some additional remarks regarding scalability. 
+Let $T_P$ be the time to solve a given problem on $P$ processors,
+where time refers to wall clock time.  
+We define the speedup, $S_P$, as 
+\begin{align}
+S_P = \frac{T_1}{T_P},
+\label{multi:speedup}
+\end{align}
+i.e., as the ratio between the solution time on a single processor 
+divided by the solution time on $P$ processors. 
+Ideally, we would like $S_P$ to be equal to $P$, implying the 
+$P$ processors should be able to solve the problem $P$ times as fast 
+as a single processor. A more realistic situation is depicted in Figure 
+\ref{fig:scalability}: for small systems (i.e., when $P$ is small), we typically 
+get good speedup for a fixed problem. As more processors are added, 
+the computational task per processor is reduced, while the communication 
+overhead between the processors typically increases. Hence, after a certain 
+number of processors, it does not pay off to add more processors. 
+
+Note that the above situation gives a too pessimistic view of supercomputing. 
+The assumption about a fixed problem size is typically not correct.  
+With the availability of larger computing systems, the problem size 
+is typically also increased. Many problems solved on large systems
+are of a size that cannot be solved in a single processor context, either because
+of the storage requirement, because of the computational cost, or both. 
+From this view point, the definition of speedup in (\ref{multi:speedup}) 
+must be used with some care. 
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.6]{scalability}
+  \end{center}
+\caption{Ideal speedup ($S_P = P$) and realistic speedup. 
+}
+\label{fig:scalability}
+\end{figure}
+
+Finally, a couple of important reminders: when working in a multiprocessor
+environment, the single-processor performance is still of utmost importance. 
+In particular, we recall some of the possibilities of parallelism within a single processor: 
+bit-level, instruction-level, pipelining, and superscalar capabilities 
+(or multiple floating point units). 
+
+\section{Multiprocessor systems: organization}
+
+According to Almasi and Gottlieb (1989), a parallel computer is a collection 
+of processing elements which communicate and cooperate to solve a problem fast. 
+This definition raises some immediate questions: 
+\begin{itemize}
+\item How many processing elements should we use?
+\item How should the processing elements communicate?
+\item Will the parallel computer be scalable?
+\item How powerful should a processor be?
+\item What about programming?
+\end{itemize}
+
+Figure \ref{fig:multiprocess1} and \ref{fig:multiprocess2} show two 
+examples of organizations. In Figure \ref{fig:multiprocess1} each processor
+has a local cache and can access memory modules via some type of interconnect. 
+In this case, all the memory modules can be accessed directly by all the processors. 
+This organization is referred to as global or shared memory access. 
+In Figure \ref{fig:multiprocess2} each processor has a local memory 
+and can only access information in other memory modules via 
+an interconnecting network. This organization is referred to as 
+distributed memory access. 
+Each organization has its strengths and weaknesses. 
+We will return to some of these issues later. 
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.7]{multiprocess1}
+  \end{center}
+\caption{A parallel computer with global memory access. 
+}
+\label{fig:multiprocess1}
+\end{figure}
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.7]{multiprocess2}
+  \end{center}
+\caption{A parallel computer with distributed memory access. 
+}
+\label{fig:multiprocess2}
+\end{figure}
+
+\subsection{Uniform memory access}
+
+There exist several ways to achieve global memory access. 
+One type of systems is referred to as SMP: Symmetric Multi-Processor. 
+This is a configuration where all the memory locations are "equidistant"
+in the sense that the memory access time is the same. 
+
+An example of an SMP is a bus-based organization; 
+see Figure \ref{fig:bus_organization}. 
+This system has a broadcast interconnect (similar to Ethernet),
+it is inexpensive, and it is easy to add processors. 
+The disadvantage with a bus organization is the very limited scalability, 
+which is due to the fact that the aggregate bandwidth is fixed. 
+The use of caches could potentially alleviate some of this problem, 
+however, then the question of how to achieve cache coherency 
+(or consistency) arises. 
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.7]{bus_organization}
+  \end{center}
+\caption{A bus-based organization. The global memory is accessible
+to each processor.
+}
+\label{fig:bus_organization}
+\end{figure}
+
+Another example of an SMP is a crossbar or a switch-based organization. 
+Similar to a bus-based system, cache coherency is needed (e.g., via broadcast). 
+A crossbar has a better scalability than a bus organization. 
+The aggregate bandwidth is increased, however, adding a processor
+becomes more and more expensive as the system size grows
+(because the number of parts increases).
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.6]{crossbar}
+  \end{center}
+\caption{A crossbar interconnect. The global memory is accessible to each processor. 
+}
+\label{fig:crossbar}
+\end{figure}
+
+In summary, there is a scalability problem with the interconnect both 
+with a bus organization and with a crossbar. In the case of the bus, the 
+scalability issue is due to the fixed aggregate bandwidth; 
+in the case of the crossbar, the scalability relates to the cost. 
+An example of a compromise between these two issues is the multistage interconnect; 
+see Figure \ref{fig:multistage_interconnect}.
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.6]{multistage_interconnect}
+  \end{center}
+\caption{A multi-stage interconnect. The global memory is accessible to each processor. 
+}
+\label{fig:multistage_interconnect}
+\end{figure}
+
+\subsection{Non-uniform memory access}
+
+An alternative to an SMP-organization is a NUMA-organization 
+(Non-Uniform Memory Access); see Figure \ref{fig:NUMA}. 
+The last supercomputers at NTNU, the Cray T3E, the SGI Origin, 
+and the current IBM supercomputer, all represent examples  of this type of organization.
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.6]{NUMA}
+  \end{center}
+\caption{A NUMA organization.  
+}
+\label{fig:NUMA}
+\end{figure}
+
+The Cray T3E had caches which were only used to hold data and 
+instructions from local memory. The computer had no mechanism 
+to keep the caches consistent with the global address space. 
+The computer was an example of a non-coherent shared memory machine. 
+In principle, any processor could read/write from/to any memory location
+in the global address space. In practice, however, messages were used to 
+transfer data from one local memory module to another. 
+The programming model was thus based on message passing. 
+We will return to this model later. 
+
+On the SGI Origin, data from any memory location could be replicated 
+into any of the caches. Hardware support existed to keep the caches consistent. 
+This is also referred to as a ccNUMA organization 
+(cache coherent Non-Uniform Memory Access). 
+Any processor could read/write from/to any memory location. 
+This feature could be exploited in a shared memory programming model. 
+However, note that a message passing programming model could still be used
+on the SGI. 
+We will return to a discussion of the current supercomputer at NTNU later. 
+
+\subsection{Distributed memory access}
+
+An example of a distributed memory organization is the mesh interconnect 
+as depicted in Figure \ref{fig:2Dmesh}. Each processor can access 
+its own local memory similar to the single processor case. 
+However, data from the local memory associated 
+with the neighboring processors are obtained by message passing. 
+The two first bits of the message are used 
+to determine in which direction (North, South, East, West) to move. 
+The two bits are then stripped off, and the message proceeds to the next 
+step on the two-dimensional mesh. The message itself is trailing behind 
+while the connection is being established. This approach is referred to as 
+{\em wormhole routing} and was developed by William Dally at MIT. 
+The mesh interconnect was used on the Intel Paragon and the Intel Delta 
+supercomputers (in the 90's).  
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.6]{2Dmesh}
+  \end{center}
+\caption{A 2D mesh interconnect. Each circle represents a processing element: 
+a CPU, local cache, and a local memory, i.e., a single processor. 
+Such a processing element is also referred to as a node.  
+}
+\label{fig:2Dmesh}
+\end{figure}
+ 
+An improved version of the mesh interconnect is the 2D toroid; 
+see Figure \ref{fig:2Dtoroid}. Compared to the 2D mesh, there are
+wrap-around connections in each spatial direction (horizontally and vertically)
+in order to reduce the worst-case hop count. 
+
+Further extensions of the mesh interconnect are the 3D mesh or 3D toroid 
+network topology (e.g., used on the Cray T3D and Cray T3E supercomputers). 
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.55]{2Dtoroid}
+  \end{center}
+\caption{A 2D toroid interconnect. 
+}
+\label{fig:2Dtoroid}
+\end{figure}
+
+Finally, we mention the hypercube organization; see Figure \ref{fig:hypercube}. 
+This type of interconnect was attractive before the wormhole-routing. 
+The whole message was typically passed through one hop before the next hop 
+could start, something which resulted in very long communication times. 
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.45]{hypercube}
+  \end{center}
+\caption{A $d$-dimensional hypercube has $2^d$ nodes (or processing elements),
+and the longest "distance" (or hops) between any two nodes is $d$. 
+}
+\label{fig:hypercube}
+\end{figure}
+
+\subsection{MIMD - supercomputers}
+
+In the following, we will focus on MIMD architectures. 
+MIMD is an acronym for Multiple Instructions Multiple Data, and 
+refers to the fact that there are multiple instruction streams 
+(one per processor or node) and multiple data streams (one per processor or node). 
+A MIMD supercomputer is a general multiprocessor. 
+
+Alternative architectures are SISD - Single Instruction Single Data 
+(a classical workstation), and SIMD - Single Instruction Multiple  Data 
+(sometimes called an array processor or a vector processor). 
+An example of a SIMD interface is HPF - High Performance FORTRAN.
+
+There are different types of MIMD computers: 
+\begin{enumerate}
+\item MIMD with {\em shared} uniform memory  (SMP, UMA), or \\
+MIMD with {\em shared} nonuniform memory  (NUMA, ccNUMA); 
+\item MIMD with distributed memory (and message passing). 
+\end{enumerate}
+
+Examples of the first category are depicted in Figure \ref{fig:SMP}
+and Figure \ref{fig:ccNUMA}. In both cases, the global 
+ address space is available to every processor; 
+hence, the term shared memory. 
+A programming model for shared memory machines exists,
+and the current de facto standard is OpenMP; see 
+\textrm{http://www.openmp.org}.
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.5]{SMP}
+  \end{center}
+\caption{A Symmetric Multi-Processor (SMP) --- sometimes also referred to as a node. 
+A node typically comprises 16-64 processors with a cache-coherent uniform memory. 
+}
+\label{fig:SMP}
+\end{figure}
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.7]{ccNUMA}
+  \end{center}
+\caption{A ccNUMA supercomputer may comprise several SMP nodes, 
+all linked together by an interconnecting network. All the caches are kept 
+coherent, however, the memory access is only uniform within a single SMP; 
+the memory access time varies between different SMPs.
+}
+\label{fig:ccNUMA}
+\end{figure}
+
+For the second class of MIMD computers, only local address space is 
+directly accessible to each processor; see Figure \ref{fig:MIMD}. 
+Access to non-local memory is achieved via message passing. 
+The standard communication library used for message passing is MPI
+(Message Passing Interface). 
+
+We remark that programs written for distributed memory machines 
+often run very well on shared memory machines. 
+This is the reason why we will focus on a distributed memory programming model 
+in this course, even though we may be running our programs 
+on a shared memory machine. We thus make a distinction between 
+the {\emph{programming model}} we choose and the particular {\emph {machine}} we use. 
+On the other hand, if we had chosen a shared memory programming model, 
+we could only use the program on a shared memory machine. 
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.7]{MIMD}
+  \end{center}
+\caption{A distributed memory computer. Only the local address space is 
+accessible to each processor. Different processors can only communicate via 
+explicit message passing. 
+}
+\label{fig:MIMD}
+\end{figure}
+
+%\clearpage
+\section{The current supercomputer at NTNU}
+
+We now give a brief overview of the current supercomputer at NTNU, 
+a SGI (Altix) supercomputer based on the Intel i7 Sandy bridge microprocessor.
+
+\subsection{The Sandy Bridge microprocessor}
+
+Multi-core systems is a recent trend in chip design. 
+The i7 microprocessor represents an example of an octa-core chip. 
+This means that a single chip integrates 8 processors (or cores) 
+into a single integrated circuit; see Figure \ref{fig:p5}.
+A single chip therefore represents 8 physical processors in the 
+sense discussed earlier. Each core is hyperthreaded meaning they
+can handle two instruction streams simultaneously. Thus, each chip has
+8 \emph{physical} cores but 16 \emph{logical} cores. The idea behind
+this design is to attempt to hide memory latencies in the system
+by having one instruction stream do calculations, while the other
+stream is waiting for data, but there are no extra resources for calculation
+available. If your code is already efficiently supplying data to one
+of the instruction streams, the use of hyperthreading might actually harm
+performance.
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.5]{sandy}
+  \end{center}
+\caption{The figure depicts a quad-core Sandy Bridge microprocessor (or chip).
+         The author was unable to locate an image of an octa-core chip.
+}
+\label{fig:p5}
+\end{figure}
+
+\subsection{Interconnecting chips to form larger SMPs}
+
+Multiple Sandy Bridge chips can be connected to form larger modules in SMP configurations.
+On \emph{vilje}, two chips are run in SMP mode on each compute node. Thus, up to
+16 (32) processors share memory.
+
+\subsection{Interconnecting nodes to form a distributed SMP}
+
+Multiple nodes may also be connected to form clusters or distributed SMPs. 
+In this case, data from one node to another must be passed across 
+a high bandwidth low-latency switch network. 
+A system based on multiple nodes must therefore be treated as a 
+distributed memory system (at least globally). 
+
+\subsection{Key data for \texttt{vilje}}
+
+The current supercomputer at NTNU, \texttt{vilje}, is based on 1404 nodes. 
+ The total number of processors (or cores) is therefore 22464. 
+ 
+Each node represents a shared memory system with 2 octa-core Sandy Bridge chips
+which share 32 GB memory (although a few nodes have 128 GB memory). 
+
+Each i7 processor operates at a clock rate of 2.6 GHz. 
+The size of the L1 cache (3 clocks) is 32 kbyte for data and 32 kbyte for instructions. 
+The size of the L2 cache (8 clocks) is 256 kbyte, while the size of the shared off-chip L3 cache
+is 20 Mbyte. 
+
+\section{Programming models}
+
+We have seen that a node (with 16 physical processors) on \texttt{vilje} 
+represents a shared memory system where the aggregate memory for the node 
+is globally available to all the 16 processors. A shared memory programming model (i.e., OpenMP) 
+can therefore be used within a single node.
+
+If we want to develop programs which can run on more than one node, we 
+need to use message-passing (i.e., MPI). This is also the programming model we will 
+emphasize in this course. Even though each node represents a shared memory 
+system, the message-passing programming model may still be used within a node.
+However, the opposite is not true: a shared programming model cannot be used on a "pure"
+distributed memory system (e.g., on a PC cluster). 
+
+Note that a system like \texttt{vilje}, which represents a shared memory 
+system within a node, and a distributed memory system across the nodes, 
+can also be programmed using both programming models within a single program. 
+
+\clearpage
+\section{Message-passing}
+
+Message-passing is fundamentally processor-to-processor communication. 
+Only a local, unique memory is directly available to each processor. 
+Both local and remote processes must cooperate in order to exchange 
+data and/or synchronize (at least originally --- some changes have been made 
+in the extended version MPI-2). 
+
+Note that message-passing is a good way to use distributed shared memory
+machines (ccNUMA) because it provides a way to express memory/data locality. 
+
+Some of the key advantages of the message-passing model are: 
+\begin{itemize}
+\item {\em portability}: the model can be used on a collection of 
+homogeneous or heterogeneous processors connected by a fast or a slow 
+communication network; 
+\item {\em performance}: the approach exploits data locality, as well as the 
+availability of a large, aggregate memory; 
+\item {\em expressiveness}: a limited communcation library suffices for most applications. 
+\end{itemize}
+
+The Message Passing Interface (MPI) is the de facto standard for message passing. 
+It is a {\em library}, not a language. MPI provides efficiency, portability and functionality. 
+It represents a standardized communcation library running on a vast number of 
+machines and architectures. Figure \ref{fig:message_passing_model} illustrates the message passing model. 
+
+The original (1994) MPI-library represents the message passing model 
+where both the local and remote processes cooperate, 
+e.g., via a send and receive operation. 
+MPI-2 represents an extension of MPI where features like 
+one-sided messages, parallel I/O, etc. are included. 
+
+
+
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=0.6]{message_passing_model}
+  \end{center}
+\caption{The message passing model. A number of processes, $P_0, P_1, \ldots, 
+P_{n-1}$, are coupled
+together via a fast or a slow communication network. 
+Each process has a local and unique memory/cache, and each 
+process is associated with a particular computational task. 
+The individual processes must communicate via explicit message passing.
+A message consists of an "envelope" which contains sufficient information 
+about whether and when to open the message, as well as information 
+regarding how to interpret the "body" of the message (the actual data). 
+Note that the message is the only means of exchanging data between the processes 
+and/or syncronizing the processes. 
+}
+\label{fig:message_passing_model}
+\end{figure}
+
+
+The MPI operations can be classified in a few types of operations: 
+\begin{itemize}
+\item one-to-one; 
+\item one-to-all; 
+\item all-to-one; 
+\item all-to-all. 
+\end{itemize}
+The first type is also referred to as point-to-point operations
+(send and receive), while the last three types are collective operations. 
+
+When we here talk about "all", we generally mean all processes
+$P_0, P_1, \ldots, P_{n-1}$ within a group of $n$ processes. 
+Such a group defines a {\em communicator}, and the particular 
+process number is referred to as the {\em rank} within that communicator. 
+The default is to let all processes be members of the same (default) communicator. 
+However, it is also possible to have some of the processes be members
+of one communicator (or group), while others be members of a different communicator.
+In this context, "all" means all the processes {\em within}Ê
+a particular communicator. 
+
+Finally, the collective operations can be further broken down into the 
+following categories: 
+\begin{itemize}
+\item data movement (broadcast; gather/scatter); 
+\item collective computation (max/min; sum; etc.).
+\end{itemize}
+
+We will later explain in more detail the various MPI operations. 
+A good way to learn MPI is by implementing a few simple examples. 
+The whole library contains about 125 functions. However, as few as 6 may 
+suffice for some problems. You only need to learn the functions needed for 
+your particular problem. You may not have  to learn the details of the whole 
+library even for advanced applications. 
+
+\newpage
+
+\subsection{An example}
+
+We now discuss a brief example of a program where the MPI library is used. 
+The program listed below does the following: processor 0 sends a text message
+"Hello, world" to all the other processors. The other processors receive
+the message and all processors print out the message together with 
+the their own process number. 
+
+Below is a listing of a program to do this. We show the C version below and 
+the  corresponding FORTRAN version on the next page. 
+
+\begin{verbatim}
+
+
+
+#include <stdio.h>
+#include "mpi.h"
+
+int main(int argc, char **argv)
+{
+      int rank, size, tag, i; 
+      MPI_Status status; 
+      char message[20];
+
+      MPI_Init (&argc, &argv);
+      MPI_Comm_size (MPI_COMM_WORLD, &size);
+      MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+      tag = 100; 
+         
+      if (rank == 0) {
+             strcpy (message, "Hello, world");
+             for (i=1; i < size; i++) {
+                 MPI_Send (message, 13, MPI_CHAR, i, tag, MPI_COMM_WORLD);
+             }
+      }
+      else {
+          MPI_Recv (message, 13, MPI_CHAR, 0, tag, MPI_COMM_WORLD, &status);
+      }
+         
+      printf ( "node %d :  %13s\n", rank, message);
+         
+      MPI_Finalize();
+      
+      return(0);
+}
+\end{verbatim}
+
+
+\newpage
+
+Below is a listing of the  FORTRAN version. 
+\begin{verbatim}
+
+
+
+ program hello
+ include 'mpif.h'
+
+ integer rank, size, ierror, tag, status(MPI_STATUS_SIZE)
+ character(12) message
+
+ call MPI_INIT (ierror);
+ call MPI_COMM_SIZE (MPI_COMM_WORLD, size, ierror);
+ call MPI_COMM_RANK (MPI_COMM_WORLD, rank, ierror);
+
+ tag = 100; 
+         
+ if (rank .eq. 0) then
+     message = 'Hello, world'
+     do i=1, size-1
+        call MPI_SEND (message, 12, MPI_CHARACTER, i, tag, 
+$                                  MPI_COMM_WORLD, ierror)
+     enddo
+ else
+     call MPI_RECV (message, 12, MPI_CHARACTER, 0, tag, 
+$                          MPI_COMM_WORLD, status, ierror)
+ endif
+         
+ print*, 'node', rank, ':' message
+         
+ call MPI_Finalize (ierror)
+ end
+
+\end{verbatim}
+
+
+\newpage
+
+We run the C version of the program on the SGI Origin (the previous supercomputer at NTNU) using $P=4$ and $P=8$ processors.
+The output from the program in these two cases are: \\ \\
+
+\underline{$\mathbf{P=4}$}
+\begin{verbatim}
+
+  node 0 :   Hello, world
+  node 1 :   Hello, world
+  node 3 :   Hello, world
+  node 2 :   Hello, world
+
+
+
+
+
+
+\end{verbatim}
+
+\underline{$\mathbf{P=8}$}
+\begin{verbatim}
+
+  node 0 :   Hello, world
+  node 5 :   Hello, world
+  node 1 :   Hello, world
+  node 7 :   Hello, world
+  node 2 :   Hello, world
+  node 3 :   Hello, world
+  node 6 :   Hello, world
+  node 4 :   Hello, world
+
+\end{verbatim}
+
+\newpage
+
+Let us now comment on some of the statements here. We start with
+\begin{verbatim}
+   #include <stdio.h>
+   #include "mpi.h"
+\end{verbatim}
+The first statement is just a standard statement about including the 
+header file associated with string (character) operations and I/O. 
+The second statement is required if we want to use the MPI library 
+in our program. In C, we need the statement
+\begin{verbatim}
+   #include "mpi.h"
+\end{verbatim}
+The equivalent statement in FORTRAN is
+\begin{verbatim}
+   include 'mpi.f'
+\end{verbatim}
+The MPI header file provides basic MPI definitions and MPI data types. 
+
+The first MPI statement needs to be:
+\begin{verbatim}
+      MPI_Init (&argc, &argv);
+\end{verbatim}
+This statement should only be called once. 
+The last MPI statement is always
+\begin{verbatim}
+      MPI_Finalize();
+\end{verbatim}
+This statement does not have to be the very last statement in your program,
+but it needs to be the last MPI statement. The statement ensures a clean exit. 
+
+Note that the command line arguments are passed to the C version of 
+\textrm{MPI\_Init}. The corresponding FORTRAN version reads: 
+\begin{verbatim}
+      call MPI_INIT (ierror);
+\end{verbatim}
+Similar to a standard subroutine call in FORTRAN, a call to an MPI operation 
+also starts with \textrm{"call"}. The parameter \textrm{"ierror"} is an integer 
+and will return an error code in case something goes wrong. 
+The C version also returns an error code. Instead of the statement used 
+in the program listed above, we could alternatively have written
+\begin{verbatim}
+      errorcode = MPI_Init (&argc, &argv);
+\end{verbatim}
+In this case, the parameter  \textrm{errorcode} (an integer) 
+will contain an error code if something goes wrong. 
+
+In general, any MPI statement in C has the format
+\begin{verbatim}
+      errorcode = MPI_Xxxxx (parameters);
+\end{verbatim}
+or, simply
+\begin{verbatim}
+      MPI_Xxxxx (parameters);
+\end{verbatim}
+The particular MPI operation is given by "Xxxxx" where the name 
+of the operation always starts with a capital letter and the remaining 
+letters are lower-case. The number and type of parameters vary from 
+operation to operation. For example, MPI\_Finalize does not have 
+any parameters at all. 
+
+In FORTRAN, any MPI statement has the format.
+\begin{verbatim}
+      call MPI_XXXXX (parameters, ierror)
+\end{verbatim}
+where the parameter "ierror" returns an error code. Note that the 
+name of the particular MPI operation is always in capital letters. 
+
+The next two statements after the initialization of MPI are: 
+\begin{verbatim}
+      MPI_Comm_size (MPI_COMM_WORLD, &size);
+      MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+\end{verbatim}
+The first of these statements returns the total number of MPI processes, 
+while the second one returns the individual process number (the "rank"). \\
+MPI\_COMM\_WORLD is the default name of the communicator 
+(the "universe") and which include all the processes. 
+This can be changed in order to create several separate "universes." 
+
+Note that the program listed in this example runs separately and independently 
+on every processor on a multiprocessor. We also refer to this  as 
+SPMD - Single Program Multiple Data. All the problems we will study in this 
+course will be of this type: the program running on each processor 
+will be the same for all the processors. However, the data each processor will 
+operate on will typically be different. The synchronization of the program will be implicit
+via the MPI operations. We will return to this issue later.
+ 
+When this program runs on a particular processor, the program does not 
+automatically know how many other processors are involved; 
+this issue is taken care of by the MPI operation MPI\_Comm\_size. 
+In the multiprocess context, the program running on an individual processor
+does not automatically know what its associated process number is
+(who am I?); this issue is taken care of by the MPI operation MPI\_Comm\_rank. 
+
+Let us now proceed to the statements 
+\begin{verbatim}
+      if (rank == 0) {
+             strcpy (message, "Hello, world");
+\end{verbatim}
+The if-statement will only be true for one of the processes, namely, 
+the process with process number 0. This is also referred to as the "root" process. 
+On the root process, the string "Hello, world" is copied into the variable "message". 
+
+For all the other processes, the if-statement will not be true, and the program 
+execution will move on to the MPI statement MPI\_Recv. 
+This means that all of the other processes will be waiting for process 0 
+to send them data. Process 0 sends data to the other processes in the 
+loop
+\begin{verbatim}
+       for (i=1; i < size; i++) {
+           MPI_Send (message, 13, MPI_CHAR, i, tag, MPI_COMM_WORLD);
+       }
+\end{verbatim}
+Several comments are in order here. First, note that process 0 sends out
+the same message (string) to all the other processes. This is done in a loop. 
+However, note that this loop corresponds to a {\em sequential} execution meaning 
+that a message will be sent to process 1 before process 2 etc. 
+
+Let us now discuss the particular format in the parameter list for the 
+operation MPI\_Send. The general format for this operation is
+\begin{verbatim}
+    MPI_Send (start, count, datatype, dest, tag, comm);
+\end{verbatim}
+The first three parameters (start, count, datatype) represent {\em the data}, 
+while the last three parameters (dest, tag, comm) represent {\em the envelope}; 
+see Figure \ref{fig:message_passing_model}.
+
+We now explain all these parameters in some more detail:
+
+\begin{verbatim}
+start     : initial address of the send buffer 
+count     : number of elements sent (of type "datatype")
+datatype  : e.g., MPI_INT, MPI_FLOAT, MPI_CHAR etc. 
+dest      : destination process (integer)
+tag       : integer message identifier (e.g., MPI_ANY_TAG)
+comm      : an ordered group of communication processes (same for send & recv)  
+\end{verbatim}
+
+Only process 0 sends a message. All the other processes are waiting to receive
+a message. This is expressed by the MPI operation MPI\_Recv. 
+The general format for this operation is 
+\begin{verbatim}
+    MPI_Recv (start, count, datatype, source, tag, comm, &status);
+\end{verbatim}
+The first three parameters (start, count, datatype) represent {\em the data}, 
+while the last three parameters (dest, tag, comm, \&status) represent {\em the envelope}; 
+again, see Figure \ref{fig:message_passing_model}.
+
+Most of the parameters are similar to the MPI\_Send operation: 
+\begin{verbatim}
+start     : initial address of the receive buffer 
+count     : number of elements sent (of type "datatype")
+datatype  : e.g., MPI_INT, MPI_FLOAT, MPI_CHAR etc. 
+source    : source process (integer), i.e., the process sending the message
+tag       : integer message identifier (e.g., MPI_ANY_TAG)
+comm      : an ordered group of communication processes (same for send & recv) 
+&status   : a structure providing information on the completed communication 
+\end{verbatim}
+
+Note that in the small example program, an explicit "source" in MPI\_Recv is given, 
+namely, process 0. Alternatively, we could have used
+MPI\_ANY\_SOURCE since each process in receive mode only expects one message. 
+Similarly, we note that the "tag" is explicitly given. Alternatively, we could  have used 
+MPI\_ANY\_TAG since this parameter is not critical in our case. 
+
+One additional comment regarding the send and receive statements. 
+This is an example of point-to-point communication. There exists several 
+versions of send and receive. The type used here is called {\em blocking} 
+send and receive. 
+This means that the program running on processor 0 cannot proceed 
+until each message has been safely sent and the send buffer can be 
+safely used again. Similarly, the program running on each of the other 
+processors cannot proceed until the expected message has been received
+in the receive buffer. 
+
+Let us now comment on the parameter "count" used in the send and receive statements. 
+In the C version, the count parameter is set equal to 13, while it is 12 in the FORTRAN version. 
+The reason for this is that the strcpy function in C will append "$\backslash$0" (the null character) at the end 
+of the message. This is a symbol which indicates the end of the string.
+ Even though "Hello, world" comprises 12 letters (one byte per letter), 
+the message buffer in C requires an extra byte of memory. 
+
+The parameter "datatype" in the send and receive operations has to be the same. 
+In this case, the type is MPI\_CHAR (in FORTRAN the corresponding data type is 
+called MPI\_CHARACTER). 
+This is one of several predefined data types. Other important ones include
+MPI\_DOUBLE and MPI\_INT. 
+
+Finally, note that the output from the programs is not in a sequential order. 
+The order may also change if we run the program over again. 
+
+\end{document}
+
+The next section will discuss the particular details related to the 
+MPI standard and operations. 
+
+
+\begin{figure}[htbp]
+  \begin{center}
+    \includegraphics[scale=1]{ieee}
+  \end{center}
+  \caption{Each floating point has a binary representation with 
+three fields: $S$ denotes the sign of the number, 
+$E$ is an exponent, and $F$ is the fraction part of the mantissa.
+}
+\label{fig:fp}
+\end{figure}
+
+
+\begin{center}
+{\bf Table 1} \\
+Number of bits for common floating point precisions
+\end{center}
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|} \hline
+Precision & $S$ & $E$ & $F$ & Total  
+  \\ \hline
+Single & $1$ & $8$ & $23$ & 32  
+  \\ \hline
+Double & $1$ & $11$ & $52$ & 64 
+  \\ \hline
+\end{tabular}
+\end{center}
+
+\vspace{.2in}
+\noindent {\bf Exercise 4}. Propose a way to avoid the above limitation. 
+
+
+
+
+
