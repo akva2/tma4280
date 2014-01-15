@@ -1,6 +1,8 @@
 tmpdir := tmp
 
-all: p1.pdf s1.pdf
+FILES := p1.pdf s1.pdf p2.pdf
+
+all: $(FILES)
 
 $(tmpdir):
 	mkdir tmp
@@ -8,8 +10,11 @@ $(tmpdir):
 p1.pdf: | $(tmpdir)
 	make -C ex1
 
+p2.pdf: | $(tmpdir)
+	make -C ex2
+
 s1.pdf: | $(tmpdir)
 	make -C ex1
 
 clean:
-	rm -rf tmp p1.pdf s1.pdf
+	rm -rf tmp $(FILES)
