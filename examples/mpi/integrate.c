@@ -15,7 +15,7 @@ int main(int argc, char **argv)
 
   if (myid == 0) {
     printf (" Enter the number of intervals:\n");
-    scanf ("%d",&n);
+    i  = scanf ("%d",&n);
     t1 = MPI_Wtime();
   }
 
