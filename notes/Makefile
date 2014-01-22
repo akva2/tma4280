@@ -1,6 +1,7 @@
 tmpdir := tmp
 
-all: intro.pdf single.pdf git.pdf multi_notes.pdf
+FILES := intro.pdf single.pdf git.pdf multi_notes.pdf openmp_notes.pdf
+all: $(FILES)
 
 $(tmpdir):
 	mkdir tmp
@@ -17,5 +18,8 @@ git.pdf: | $(tmpdir)
 multi_notes.pdf: | $(tmpdir)
 	make -C 03.multi
 
+openmp_notes.pdf: | $(tmpdir)
+	make -C 04.openmp
+
 clean:
-	rm -rf tmp intro.pdf single.pdf git.pdf multi_notes.pdf
+	rm -rf tmp $(FILES)
