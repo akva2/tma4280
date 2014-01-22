@@ -1,7 +1,7 @@
 tmpdir := tmp
 
 FILES := curriculum.pdf trends.pdf thetool.pdf crash.pdf multi.pdf mpi.pdf \
-  	 kongull.pdf
+  	 kongull.pdf openmp.pdf
 
 all: $(FILES)
 
@@ -28,6 +28,9 @@ mpi.pdf: | $(tmpdir)
 
 kongull.pdf: | $(tmpdir)
 	make -C 06.kongull
+
+openmp.pdf: | $(tmpdir)
+	make -C 07.openmp
 
 clean:
 	rm -rf tmp $(FILES)
