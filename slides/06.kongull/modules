@@ -1,0 +1,5 @@
+List available software:
+module avail
+
+Add a specific module:
+module load intelcomp/13.0.1

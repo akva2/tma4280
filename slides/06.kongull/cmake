@@ -1,0 +1,3 @@
+mkdir Release
+cd Release
+CXX=icpc CC=icc FC=ifort cmake ..

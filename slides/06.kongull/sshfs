@@ -1,0 +1,2 @@
+user@randommacine$ sudo apt-get install sshfs
+user@randommacine$ sshfs user@kongull.hpc.ntnu.no /some/dir
