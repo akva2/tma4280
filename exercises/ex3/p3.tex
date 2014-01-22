@@ -1,0 +1,64 @@
+\documentclass[11pt]{article}
+\bibliographystyle{plain}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb} 
+\usepackage{epsfig,epsf,subfigure}
+\geometry{a4paper} 
+
+\begin{document}
+\centerline{\LARGE\textbf{TMA4280 Introduction to Supercomputing}}
+
+\vspace*{5ex}
+
+\centerline{\Large\textbf{Problem Set 3}}
+
+\large
+
+\vspace*{8ex}
+\centerline{Einar M. R{\o}nquist}
+
+\vspace*{4ex}
+\centerline{Spring 2011}
+
+\subsection*{Exercise 1}
+
+Check out the the web site http://www.top500.org/  describing the 
+top 500 supercomputers in the world. In particular, 
+read more details about the top 10 supercomputers in the world
+(what type of computer, technical
+specifications, etc.). What is meant by the LINPACK
+benchmark performance?
+
+\subsection*{Exercise 2}
+
+\begin{enumerate}
+\item What limits the scalability of a bus-based interconnect?
+\item How are the individual processors connected using a crossbar?
+\item How are the individual processors connected using a mesh?
+\item What is the difference between a shared-memory and a distributed 
+memory architecture?
+\item Is the memory access time uniform for an SMP?
+\item What is the difference between a NUMA and a ccNUMA architecture?
+\end{enumerate}
+
+\subsection*{Exercise 3}
+
+How many bytes are sent in each of the three messages listed below \\(here given in C, but this is not important)?
+\begin{verbatim}
+MPI_Send(buffer1, 80, MPI_CHAR, dest, tag, MPI_COMM_WORLD);
+
+MPI_Send(buffer2, 1024, MPI_INT, dest, tag, MPI_COMM_WORLD);
+
+MPI_Send(buffer3, 1024, MPI_DOUBLE, dest, tag, MPI_COMM_WORLD);
+
+\end{verbatim}
+
+\subsection*{Exercise 4}
+Is it true that a unique tag must be specified each time MPI\_Recv is called?
+
+\subsection*{Coding task}
+Implement the program from exercise 2 using MPI.
+The program should run on any number of processes.
+Hint; You should partition the matrix in column strips. 
+
+\end{document}
