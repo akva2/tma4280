@@ -1,0 +1,5 @@
+command line:
+ssh -X kongull
+
+config file:
+ForwardX11 Yes

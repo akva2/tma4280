@@ -1,0 +1,124 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{rotating}
+\usepackage{graphicx}
+\usepackage{multimedia}
+\usepackage{listings}
+
+\useinnertheme[shadow=true]{rounded}
+\useoutertheme{shadow}
+\usecolortheme{orchid}
+\usecolortheme{whale}
+
+\mode<presentation>
+
+\newcommand{\dif}{\, \mathrm{d}}
+\newcommand{\diff}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\partdiff}[2]{\frac{\partial #1}{\partial #2}}
+
+
+\title{TMA4280 - Introduction to supercomputing}
+\subtitle{Kongull crash course}
+\author{Arne Morten Kvarving}
+\institute{NTNU and SINTEF ICT}
+\date{February 2012}
+
+\begin{document}
+
+\maketitle
+\begin{frame}\frametitle{Supercomputing - a users guide}
+\begin{itemize}
+    \item Supercomputers use, with very few exceptions, a unix-type operating system.
+    \item Predominantly Linux these days.
+    \item Varying degree of unix knowledge.
+    \item This will be a crash course in using one such systems (kongull).
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{How do I log onto the system?}
+\begin{itemize}
+    \item Login is handled through \emph{secure shell} or \texttt{ssh} for short.
+    \item On a Linux or OSX computer, this is built into the operating system.
+    \item On Windows you need to use special software called a SSH client.
+    \item One example of a client: Putty.
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{How do I log onto the system?}
+\begin{itemize}
+    \item We will be using the \texttt{kongull} cluster.
+    \item URL: kongull.hpc.ntnu.no
+    \item On a Linux/OSX shell: \small \lstinputlisting{login} \normalsize
+    \item Note: This machine is NOT accessible from the outside world.
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{How do I transfer files to/from the system?}
+\begin{itemize}
+    \item File transfers is performed using \emph{secure copy} or \texttt{scp} for short.
+    \item On a Linux or OSX computer, this is built into the operating system.
+    \item On Windows you need to use special software capable of performing SSH transfers.
+    \item One example of such an application is \emph{WinSCP}.
+    \item Alternative approach Linux: \texttt{sshfs}.
+    \item Alternative approach Windows: \texttt{mindTerm/NetDrive}.
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Damn password}
+\begin{itemize}
+    \item You can avoid it: \lstinputlisting{keys}
+    \item Putty has some kind of key mechanism but I do not know the details.
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Damn host name, so long}
+\begin{itemize}
+    \item You can setup shortcuts for ssh. \$HOME/.ssh/config
+        \lstinputlisting{sshconfig}
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Editing files}
+\begin{itemize}
+    \item Two choices: text mode editor or graphical editor.
+    \item Text mode editors: emacs, vim, gedit, nano.
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Graphical display - X11 forwarding}
+\begin{itemize}
+    \item The graphical windowing system on unix is called X11.
+    \item This can be \emph{tunneled} over ssh.
+    \item This way, an application can run on one computer and display
+        on another.
+    \item For Linux: \lstinputlisting{sshx}
+    \item For OSX: Start X11.app, then it's the same.
+    \item For windows: X-Win32. Available on progdist.
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The modules system}
+\begin{itemize}
+    \item All software on NOTUR systems are offered through the modules system.
+    \item Relevant commands: \lstinputlisting{modules}
+    \item Relevant modules: intelcomp, openmpi, cmake, mercurial
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Using cmake}
+\begin{itemize}
+  \item You need to tell cmake to use the intel compilers:
+    \lstinputlisting{cmake}
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Running jobs throug the queue system}
+\begin{itemize}
+   \item You have to write a job script.
+     \lstinputlisting[basicstyle=\tiny]{jobscript}
+   \item Note that we have to load (some of) the modules in the script as well!
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Running jobs throug the queue system}
+\begin{itemize}
+   \item You have to make sure it is marked as executable:
+     \lstinputlisting{chmod}
+   \item You submit to the queue through:
+     \lstinputlisting{qsub}
+   \item You see the progress of your job through:
+     \lstinputlisting{showq}
+   \item You see the output of your program in files:
+     \lstinputlisting{listing}
+\end{itemize}
+\end{frame}
+\end{document}
