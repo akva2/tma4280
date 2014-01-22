@@ -1,0 +1,221 @@
+\documentclass[11pt]{article}
+\bibliographystyle{plain}
+\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
+\usepackage{amsmath,amssymb} 
+\usepackage{epsfig,epsf,subfigure}
+\geometry{a4paper} 
+
+
+%\documentclass{article}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1ex plus 0.5ex minus 0.2ex}
+
+\begin{document}
+ 
+\LARGE
+\begin{center}
+TMA4280: Introduction to Supercomputing
+\end{center}
+\vspace{1in}
+
+\begin{center}
+{\bf Suggested solutions} \\
+Problem set 2
+\end{center}
+
+\Large
+\vspace{0.5in}
+\begin{center}
+January 2012
+\end{center}
+
+\vspace{0.5in}
+
+\begin{center}
+\copyright Einar M. R{\o}nquist \\
+Department of Mathematical Sciences\\
+NTNU, N-7491 Trondheim, Norway\\
+All rights reserved
+\end{center}
+
+\large
+
+\newpage
+
+\subsection*{Exercise 1}
+Each double precision number requires 8 bytes of storage. 
+Hence, we can store 4000 floating point numbers in L1 cache, 
+almost a quarter million in the shared L2 cache, 
+and 4.5 million floating point numbers in the off-chip L3 cache. 
+
+The largest square matrix we can fit in the caches are (approximately) 
+of dimension:  63 for the L1 cache, 
+($63 \times 63 \approx 4000$), 482 for the L2 cache, and 2121 for the L3 cache. 
+Note that the largest matrix we can fit i main memory is approximately of dimension 11,000. Note also the relatively small matrix dimension that can fit in L1 cache. 
+
+\subsection*{Exercise 2}
+\begin{enumerate}
+\item The speed of light limits the speed of electronic circuits.
+\item If a signal is supposed to travel a distance $2\cdot s$ in less
+    than $100$ picoseconds, we must require:
+    \begin{displaymath} 
+        2\cdot s\leq v\cdot t=(3\cdot 10^{8}\;\mbox{m/s})\cdot (100\cdot 10^{-12})
+        \mbox{s}
+    \end{displaymath} 
+    which gives $s\leq 1.5\;\mbox{cm}$.
+\end{enumerate}
+
+
+
+\subsection*{Exercise 3}
+
+(a) All three operations represent vector operations.
+Microprocessors based on a RISC architecture 
+(e.g., a DEC alpha microprocessor) will typically have a 
+memory hierarchy. Fastest access is achieved if the relevant data 
+is stored in the internal registers. Somewhat slower access is 
+achieved if the data is stored in cache (often several levels).
+The speed decreases significantly as one needs to fetch or store 
+data deeper in the memory hierarchy, i.e., to the main memory (RAM),
+to the disk, and to distributed memory. 
+
+An arithmetic unit will typically split each floating point operation 
+into several stages. This gives the possibility to overlap stages,
+in particular, if these are independent of each other. After a certain
+start-up time,  a typical vector operation will reach an asymptotic 
+(maximum) speed. This explains the first part of the results in 
+Figure 1. For operations 1, 2 and 3, we see that half of the 
+maximum speed is reached when $n \simeq 20-30$.
+In the beginning of a vector operation, there will always be some
+overhead with the pipelining and chaining (chaining is sometimes 
+used as a term to mean that we "chain" the adder and the multiplier 
+together to achieve superscalar performance). In addition, there will 
+be some overhead associated with a subroutine call. 
+Note that it is especially advantageous to pipe or to chain together 
+vector operations where the individual vector elements 
+follow after one another (unit stride operations; 
+contiguous memory allocation).
+
+High performance assumes that the data can be accessed fast.
+As long as the vector length $n$ is less than a certain value, 
+all the relevant data can fit in cache. For larger $n$, this 
+is no longer true. The data needs to be fetched from a slower 
+part of the memory, and one experience a significant drop in the
+performance (i.e., the number of floating point operations per second).
+Hence, the bottleneck will ultimately be memory access as $n$ increases. 
+Operation 1 only needs access to the vector elements $a_i,\, i=1,...,n$. In this case, 
+we observe a drop in the performance when $n > 8192$.
+From this we conclude that the effective size of the cache
+is $8192 \times 64$ bits = 524,288 bits = 65536 bytes =
+64 KBytes (which is quite small compared to the L1+L2+L3 caches on njord).
+However, operation 2 and 3 need access to both the 
+vector elements $a_i,\, i=1,...,n$ and $b_i,\, i=1,...,n$. 
+We therefore see a corresponding fall in performance when $n > 4096$. 
+
+In operation 1, the constant $c$ is added to the 
+vector elements $a_i,\, i=1,...,n$. In operation 2, the 
+vector elements $b_i,\, i=1,...,n$ are added to the vector elements 
+$a_i,\, i=1,...,n$. In operation 1, the constant $c$ can be stored 
+in a register, while the vector elements $a_i,\, i=1,...,n$ 
+are transfered from cache. In operation 2, both the vector elements
+$a_i,\, i=1,...,n$ and the vector elements $b_i,\, i=1,...,n$
+are transfered from cache. Since a register is 
+faster than cache, and there is more memory traffic in operation 2 
+compared to operation 1, operation 1 will be faster than operation 2.
+
+Operation 3 resembles operation 2 except that all the vector
+elements $b_i,\,i=1,...,n$ are multiplied with the constant $c$
+before the addition with $a_i,\, i=1,...,n$. 
+A typical property with a RISC architecture is the possibility 
+to chain together addition and multiplication 
+(superscalar mode). By ignoring memory access time, 
+the performance of operation 3 should be approximately twice as 
+high as for operation 1. For the same reason as for operation 2,
+the extra memory access required for operation 3 will reduce
+this estimate somewhat. However, the performance for operation 3 
+is significantly higher than for operation 1.
+
+A final comment (2009): The behavior on njord (which is based on the POWER5 chip) 
+will be a little different although some of the trends will be similar. 
+\\
+\\
+(b) Many scientific problems can be described mathematically by 
+partial differential equations. Discretization of such equations
+often results in large systems of algebraic equations which need to 
+be solved. Basic operations in linear algebra (matrix and vector
+operations) are therefore very important. However, the performance 
+of such basic operations is strongly dependent upon how fast
+the data can be accessed.  Good reuse of data close to the 
+arithmetic units (or data high in the memory hierarchy) is therefore
+very important (data locality in time and space).
+
+
+\subsection*{Exercise 4}
+
+Storing the vector elements in the proposed sequence could be 
+advantageous in order to avoid cache trashing. 
+This could happen if $n$ happened to be equal to the 
+number of floating point numbers that can fit in L1 or L2 cache, 
+and if a direct mapped cache approach is used; see the lecture notes. 
+
+The proposed sequence could be realized as follows: 
+In C, allocate memory for a matrix M with dimension M[n][3] where $n$ is given.
+Then initialize 
+\begin{verbatim}
+                          for i=1,n
+                               M[i][1] = a[i];
+                               M[i][2] = b[i];
+                               M[i][3] = c[i];
+                          end
+\end{verbatim}
+and finally set
+\begin{verbatim}
+                          for i=1,n
+                               M[i][3] = M[i][1] + M[i][2]; 
+                          end
+\end{verbatim}
+The last loop will access the data elements in the proposed sequence
+since C uses a row-based storage scheme
+(i.e., the data elements in a single row are stored contiguously in memory).
+
+In FORTRAN, allocate memory for a matrix M with dimension M(3,n) where $n$ is given.
+Then initialize 
+\begin{verbatim}
+                          for i=1,n
+                               M(1,i) = a(i)
+                               M(2,i) = b(i)
+                               M(3,i) = c(i)
+                          end
+\end{verbatim}
+and finally set
+\begin{verbatim}
+                          for i=1,n
+                               M(3,i) = M(1,i) + M(2,i) 
+                          end
+\end{verbatim}
+The last loop will access the data elements in the proposed sequence
+since \\FORTRAN uses a column-based storage scheme
+(i.e., the data elements in a single column are stored contiguously in memory). 
+
+The rearrangement discussed above will probably not be worth the trouble 
+in this particular case. First, the chance of cache trashing in this case 
+is not very high. 
+Second, if a cache line can end up in one of several cache lines 
+(see the lecture notes), cache trashing will probably not be an issue. 
+Third, the rearrangement discussed above will require additional 
+memory references in the initialization phase compared to the original 
+(and simple) approach. However, the exercise is meant to show that 
+it is possible to realize that the data elements are accessed in a particular order,
+and that this is also language dependent. 
+
+Assume that we don't do any changes to the original implementation. 
+If a cache line can end up in different places in the caches (L1 and L2), 
+what will happen when we request access to $a(i)$, $b(i)$ and $c(i)$ 
+is that we also automatically get access to neighboring elements in three vectors. 
+This is because a cache line in L1 cache corresponds to 4(?) floating point numbers 
+in double precision, a cache line in L2 cache corresponds to 16 
+floating point numbers, and a cache line in L3 cache corresponds to 32 floating point 
+numbers (all in double precision). 
+
+\end{document}
