@@ -218,7 +218,9 @@ int getCurrentThread()
 
 double WallTime ()
 {
-#ifdef HAVE_OPENMP
+#ifdef HAVE_MPI
+  return MPI_Wtime();
+#elif defined(HAVE_OPENMP)
   return omp_get_wtime();
 #else
   struct timeval tmpTime;
