@@ -1,0 +1,690 @@
+\documentclass[11pt]{article}
+\bibliographystyle{plain}
+\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
+\usepackage{amsmath,amssymb} 
+\usepackage{epsfig,epsf}
+\usepackage{listings}
+\usepackage{float}
+\geometry{a4paper} 
+\usepackage{subfigure}
+
+\restylefloat{figure}
+
+\begin{document}
+ 
+\LARGE
+\begin{center}
+TMA4280: Introduction to Supercomputing
+\end{center}
+\vspace{1in}
+
+\begin{center}
+{\bf Basic linear algebra operations: \\
+A performance study on \texttt{vilje}
+}
+
+\end{center}
+
+\Large
+\vspace{0.5in}
+\begin{center}
+Spring 2014
+\end{center}
+
+\vspace{0.5in}
+
+\begin{center}
+\copyright 2012 Einar M. R{\o}nquist \\
+Department of Mathematical Sciences\\
+NTNU, N-7491 Trondheim, Norway\\
+All rights reserved \\
+\vspace{0.3in}
+Revised by Arne Morten Kvarving, Spring 2014
+\end{center}
+
+\normalsize
+
+\newpage
+
+\section{Introduction}
+Simulation-based science and technology require a rich set of numerical algorithms. 
+For example, in the context of numerical solution of partial differential equations we 
+have seen the need to solve linear systems of algebraic equations. 
+Solution algorithms for linear system of equations may again be classified as direct
+methods or iterative methods. In either case, the solution algorithms 
+rely on basic linear algebra operations. Most of the floating point operations in a 
+typical simulation code are associated with such operations. 
+
+Because of the importance of basis linear algebra operations, a special library
+called BLAS (Basic Linear Algebra Subroutines) has been developed to deal with such operations. 
+The BLAS library can again be classified into three levels: 
+\begin{itemize}
+  \item Level 1 operations: vector-vector operations; 
+  \item Level 2 operations: matrix-vector operations; 
+  \item Level 3 operations: matrix-matrix operations. 
+\end{itemize}
+Two examples of level 1 BLAS operations are
+\begin{eqnarray}
+\underline{y} := a \underline{x} + \underline{y}
+\label{eq:daxpy}
+\end{eqnarray}
+and 
+\begin{eqnarray}
+\sigma = \underline{x}\cdot\underline{y} = \underline{x}^T\underline{y}.
+\label{eq:dot}
+\end{eqnarray}
+Operation (\ref{eq:daxpy}) is called a {\em daxpy}Ê
+operation. Here, the input  $\underline{x}$ (of length $n$) is scaled 
+with a constant $a$ and added to
+ the second input vector $\underline{y}$ (also of length $n$). 
+ The result is then stored back in the vector $\underline{y}$, 
+i.e., the original values in $\underline{y}$ are overwritten. 
+
+Operation (\ref{eq:dot}) represents a dot product (or inner product) which we have discussed
+extensively earlier in the course. Here, from the two input vectors $\underline{x}$ and 
+$\underline{y}$ (both of length $n$) we compute the scalar $\sigma$. 
+
+An example of a level 2 BLAS operation is the matrix-vector product 
+\begin{eqnarray}
+\underline{y} = \underline{A}\,\underline{x}. 
+\label{eq:mvp}
+\end{eqnarray}
+Here, the output vector $\underline{y}$ (of length $m$) is computed from 
+the given input matrix $\underline{A}$ (of dimension $m \times n$) and the 
+given input vector $\underline{x}$ (of length $n$). 
+
+An example of a level 3 BLAS operation is the matrix-matrix product
+\begin{eqnarray}
+\underline{C} = \underline{A}\,\underline{B}.
+\label{eq:mxm}
+\end{eqnarray}
+Here, the matrix $\underline{C}$ (of dimension $m\times n$) is computed as 
+the product of the matrix $\underline{A}$ (of dimension $m\times k$) and 
+the matrix $\underline{B}$ (of dimension $k\times n$). 
+
+In this set of lecture notes, we will discuss the performance of operations 
+(\ref{eq:daxpy}), (\ref{eq:dot}) and (\ref{eq:mxm}) on \texttt{njord}. 
+We will primarily focus on the single-processor performance, but we will also 
+consider the multi-processor performance using the BLAS implementation included in 
+the \texttt{mkl} library developed at Intel. 
+
+In particular, we will discuss the performance as a function of:
+\begin{itemize}
+  \item basic linear algebra operation; 
+  \item programming aspects; 
+  \item high level programming languages; 
+  \item exploiting multiple threads.
+\end{itemize}
+
+\subsection{Key data for \texttt{vilje}}
+The current supercomputer at NTNU, \texttt{vilje}, is based on 1404 nodes. 
+The total number of processors (or cores) is 22464 physical cores, each
+core being hyperthreaded, thus having 44928 logical cores.
+ 
+Each node represents a shared memory system with 2 octave-core Sandy Bridge chips
+which share 32 GB memory (although a few nodes have 128 GB memory). 
+
+Each processor operates at a clock rate of 2.6 GHz. 
+The size of the private L1 cache is 32 kbyte for data and 32 kbyte for instructions. 
+The size of the private L2 cache is 256 kB, while the size of the 
+off-chip L3 cache is 20 Mbyte. 
+
+The latency associated with the different memory levels is: 
+8 clock cycles for L2, 30 clock cycles for L3, and 150 clock cycles for main memory.
+
+\subsection{Maximum theoretical performance}
+
+The maximum theoretical performance (or peak performance) 
+is the maximum number of floating point operations completed per second. 
+We may talk about the maximum theoretical performance for a single CPU, 
+a single node, or for the entire machine. 
+
+The maximum theoretical performance of a single core of a Sandy Bridge chip is 
+found as follows. First, each physical has a separate SIMD floating point unit (AVX). 
+This is a superscalar/FMA capable (Fused Multiply and Add) vector unit
+which can operate on 4 double precision number simultaneously.
+ This performance is achieved if the units can be filled fast enough with data, 
+and after a certain start-up period (recall the earlier discussion about pipelining). 
+With 1 AVX per physical core, the maximum theoretical performance per core is thus
+8 floating point operations per clock cycle. With a clock cycle of 2.6 GHz, 
+this translates into 21 Gflops per physical core. Note, since logical cores
+share AVX units, we cannot expect additional performance from using the hyperthreads,
+since in order to achieve this performance we are already using the full memory
+bandwidth of the machine.
+
+Unfortunately, many operations only achieve a fraction of the maximum 
+theoretical performance. The measured performance will typically depend on the 
+the reuse of data (a high degree of reuse means less memory traffic) and 
+how good the compiler is. For the basic linear algebra operations we will study 
+here, we will see a large variation in performance. 
+Not surprisingly, the specially developed BLAS library will typically give excellent 
+performance. However, some of the observed differences may come as a surprise. 
+
+\section{Compiling and running the programs}
+The source code and the buildsystem for the tests are found in the git repository
+at \emph{https://github.com/akva2/tma4280}. CMake is used to generate the different
+Fortran programs, and to generate a build system capable of building the testing
+suite on most machines, including \emph{vilje}, \emph{kongull} or your local Linux/OSX
+machine. There is also a example job script (for vilje, need some small changes for Kongull),
+a script to postprocess the results and (for those interested) the Octave/Matlab scripts used
+to generate the \LaTeX\  code for the tables in this document.
+
+\section{Vector-vector operations (BLAS Level 1)}
+In this section we briefly discuss some performance results for an important 
+vector-vector operation: the daxpy-operation (\ref{eq:daxpy}).
+
+The d(ouble precision) a(lpha) x p(lus) y operation,
+\[
+  \underline{y} := \alpha \underline{x} + \underline{y},
+\]
+does exactly $n$ operations (additions) on $\mathcal{O}(n)$ data, 
+and needs to store $n$ floating point numbers back into memory. 
+All this memory traffic will severely influence the performance we can reach. 
+In contrast to the matrix-matrix multiplication, only $\mathcal{O}(1)$ floating 
+point operations are needed per floating point number stored. 
+There is thus very little "reuse" of data in vector-vector operations. 
+From these general considerations we expect  vector-vector operations 
+to perform significantly worse than the matrix-matrix product multiplication. 
+
+\subsection{Performance results: daxpy}
+Tables \ref{tab:tab9}, \ref{tab:tab10} show the performance results of the daxpy operation. In general, 
+a standard implementation of the daxpy operation in C (i.e., a single loop), 
+performs just fine. This is to be expected since this operation is utterly
+memory bandwidth bound and not much can be done wrong.
+
+\begin{table}[H]
+  \input{results/Table5.tex}
+  \caption{Performance results (in Mflops) for a standard daxpy implementation in C
+           (implemented as a single loop), compared with the performance using BLAS.}
+  \label{tab:tab9}
+\end{table}
+
+\begin{table}[H]
+  \input{results/Table6.tex}
+  \caption{Performance results (in Mflops) for a standard daxpy implementation in Fortran
+           (implemented as a single loop), compared with the performance using BLAS.}
+  \label{tab:tab10}
+\end{table}
+
+\section{Matrix-matrix multiplication}
+Let us first consider the matrix-matrix multiplication (\ref{eq:mxm}). 
+In general, if $A \in \mathbb{R}^{mxk}$, $B \in \mathbb{R}^{kxn}$ and $C \in \mathbb{R}^{mxn}$,
+\[
+	c_{ij} = \sum_{l=1}^k a_{il}b_{lj}, \qquad \forall\ i=1,\cdots,m,\qquad\forall\ j=1,\cdots,n.
+\]
+Written out, this is
+\[
+	c_{ij} = a_{i1}b_{1j} + a_{i2}b_{2j}+\cdots+a_{ik}b_{kj}\qquad \forall\ i=1,\cdots,m,\qquad \forall\ j=1,\cdots,n.
+\]
+Mathematically, there are thus $k$ multiplications and $k-1$ additions for each $i,j$. The total number of operations is then 
+\[
+	\mathcal{N}_{op} = mn\left(2k-1\right).
+\]
+
+For the special case where $A,B,C\in \mathbb{R}^{nxn}$, the total number of operations is
+\[
+	\mathcal{N}_{op} = n^2²\left(2n-1\right) \approx 2n^3.
+\]
+Hence, if $m,n,k$ are of the same order (e.g., $m=k=n$), 
+\begin{eqnarray}
+\mathcal{N}_{op} = \mathcal{O}\left(n^3\right).
+\end{eqnarray}
+
+\subsection{Implementation: triple-nested loop}
+In a numerical program, matrix multiplication can be implemented in several ways.
+The most straightforward method is in a triple-nested loop as follows (using C):
+\begin{lstlisting}[language=c]
+for(i=0; i<m; ++i ) {
+	for( j=0; j<n; ++j ) {
+		c[i][j] = 0.0;
+		for( l=0; l<k; ++l ) {
+			c[i][j] += a[i][l]*b[l][j];
+		}
+	}
+}
+\end{lstlisting}
+Here, the terms are accumulated relative to an initialized value of zero. 
+Counting the number of floating point operations in the inner-most loop, 
+there are one multiplication and one addition.
+The total number of floating point operations for matrix multiplication then becomes 
+$\mathcal{N}_{op} = 2mnk$ ( $=2n^3$ when $m=k=n$).
+
+\subsection{Implementation: loop unrolling}
+
+Loop unrolling helps to make the data flow and the data dependencies 
+more explicit and prepare for good use of the floating point units. 
+For example, when $k=10$, the inner-most loop
+can be unrolled manually to get the following alternative version:
+\begin{lstlisting}[language=c]
+for( i=0; i<m; ++i ) {
+	for( j=0;j<n; ++j ) {
+		c[i][j] =   a[i][0]*b[0][j]
+			   +a[i][1]*b[1][j]
+                           +a[i][2]*b[2][j]
+		           +a[i][3]*b[3][j]
+                           +a[i][4]*b[4][j]
+                           +a[i][5]*b[5][j]
+                           +a[i][6]*b[6][j]
+			   +a[i][7]*b[7][j]
+		           +a[i][8]*b[8][j]
+                           +a[i][9]*b[9][j]; 
+	  }
+}
+\end{lstlisting}
+Here, all the terms are written out explicitly, following the mathematical definition.
+The computation of \texttt{c[i][j]} now takes one addition less than multiplications. 
+
+Loop unrolling reveals independent operations that can be performed concurrently, 
+while reducing the index-related overhead of the loop. This makes it possible
+to make better use of the pipelined, superscalar (vector) floating point units of the processor.
+At high enough optimization levels, the compiler will typically try to unroll loops where 
+it sees this as beneficial.
+
+\section{Performance results: matrix-matrix multiplication}
+
+We now present performance measurements for the matrix-matrix multiplication.
+The source codes used are given in the appendix.
+In all the tests we perform, $m=k=n$ (i.e., we consider square matrices). 
+Both a C version and a FORTRAN version of the matrix-matrix operation 
+will be tested and compared with the performance using the \texttt{dgemm} 
+routine from the BLAS library.  We provide the full program listings, together
+with a description of how the programs were compiled and run on \texttt{vilje}.
+For example, we will  explore the effect of using different levels of compiler
+optimization. 
+
+Note that we may call the Level 3 BLAS routine \texttt{dgemm} from either 
+FORTRAN or C. When we use this library routine, the optimization level 
+or code language should not matter. As long as $n$ is large enough, it is
+possible to obtain a high degree of peak performance. 
+
+Finally, note that the performance results we list in the following are approximate 
+and may not be exactly reproducable. However, they represent typical results
+and the conclusions we arrive at should be valid. 
+
+The programs were run on 16 processors even though the code contains no
+communication between the processors. This gave 16 timing results per run.
+
+These versions are single threaded;  the difference is only the compiler 
+optimization level. 
+
+\begin{table}[H]
+  \input{results/Table1.tex}
+  \caption{Standard mxm (triple-nested loop) using C, compared with BLAS.}
+  \label{table:tab1}
+\end{table}
+
+As can be seen from Table \ref{table:tab1}, the compiler optimization level had really disappointing
+influence on the obtained performance --- in fact, it actually reduced it for some cases.
+These results looks far from flattering for the C programming language. Fortunately, this
+can be overcome by using the BLAS, in this case through the MKL library. 
+The BLAS version of the program was invoked by calling e.g.
+
+\begin{center}
+	\begin{verbatim}
+		mpirun -np 16 timing-O3 1000 2
+	\end{verbatim}
+\end{center}
+
+For the Fortran version of the programs, however, as can be seen from Table \ref{table:tab2}, 
+the compiler optimization level greatly influences the obtained performance.\\
+
+\begin{table}[H]
+  \input{results/Table2.tex}
+  \caption{Standard mxm (triple-nested loop) using FORTRAN, compared with BLAS.}
+  \label{table:tab2}
+\end{table}
+
+We see that the language utilized greatly influnces the performance of this operation. 
+This can be attributed to the fact that, given proper memory handling, 
+the MxM operation is dominated by floating point operations. 
+The BLAS and (and to some extent) FORTRAN realizations manage to keep the pipelines filled with data,
+while the C version does not seem to be able to keep the floating point units
+fully occupied.
+
+Let us also compare these performance results with the manually unrolled innermost loop (which we have done for the specific case $n=10$). The programs are compiled 
+and linked as before. When we activate \texttt{mxm\_unr}, we obtain the following results: \\
+
+\begin{table}[H]
+  \input{results/Table3.tex}
+  \caption{"Manually" unrolled innermost loop (mxm\_unr), C.}
+  \label{table:convergence_C}
+\end{table}
+
+\begin{table}[H]
+  \input{results/Table4.tex}
+  \caption{"Manually" unrolled innermost (mxm\_unr), FORTRAN.}
+  \label{table:convergence_F}
+\end{table}
+
+We do not observe much performance increase for either case. It seems that this is a trick
+the compiler uses extensively on its own. Note that the FORTRAN version is still about 50\% faster than 
+the C version (for -O3). 
+
+We now try to use the parallel (multi-threaded version) of the BLAS implemented in the MKL
+library.
+\begin{table}[H]
+  \begin{center}
+    \begin{tabular}{|c|c|}
+      \hline
+      n & BLAS (16 threads) \\
+      \hline
+      100 & 1463.80 \\
+      500 & 66599 \\
+     1000 & 100527 \\
+     1500 & 101389 \\
+      \hline
+    \end{tabular}
+  \end{center}
+  \caption{BLAS with 16 threads (SMP). All performance numbers are in Mflops.}
+  \label{table:tab4}
+\end{table}
+From Table \ref{table:tab4} we see that we obtain very impressive performance.
+These numbers should be compared with the maximum theoretical performance 
+for the entire node (i.e., using 16 processors) which is $16\times 21$ Gflops $= 336$ Gflops.
+Note that the cannot get more than 21 Gflops per core since this number 
+corresponds to the maximum performance of the available multiply-and-add units per core. 
+We thus see that BLAS (using the SMP version of the \texttt{MKL} library) 
+achieves close to 33\% of the maximum theoretical performance over 16 processors.
+This is actually quite impressive since this was achieved only by adding 
+a few compile and run flags; the program itself is unchanged from earlier.
+This might seem a bit disappointing, but it just shows the real bottleneck in the computer;
+memory bandwidth.
+
+Finally, we recall the reason for the excellent performance of the 
+BLAS library for the matrix-matrix multiplication operation: 
+the mxm operation uses $\mathcal{O}(n^2)$ data and 
+$\mathcal{O}(n^3)$ operations, implying that we need to do
+$\mathcal{O}(n)$ floating point operations per single 
+floating point number stored. Because of the significant "reuse" of data, 
+there is a significant potential to hide the memory latency and keep the 
+floating point units busy.  
+In particular, BLAS is able to get close to optimal single-processor performance, and a 
+standard triple loop in FORTRAN is able to get fairly close using two threads per core. 
+Unfortunately, the C version is not able to keep the floating point units busy enough. 
+
+\subsection{Final comment: combining FORTRAN and C}
+
+We recall that memory is allocated column-wise in FORTRAN 
+and row-wise in C. In the BLAS library the FORTRAN convention is used. 
+It is thus necessary to be careful when using two-dimensional arrays 
+when call \texttt{dgemm} (or other routines following the FORTRAN convention).
+
+To ensure correctness, there are several ways to proceed. By switching indices
+when accessing arrays in C, a ``pseduo'' column-wise allocation is achieved.
+This is the approach we choose to use here (and in the rest of the course).
+Sometimes it may be possible to use a version of the library that accepts row-wise 
+allocation, such as the CBLAS library. However, the CBLAS is not as universally available,
+so we have chosen the approach that is most portable.
+
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+The standard inner product (or dot product) of two vectors $x$ and $y$ 
+of length $n$ is given by
+\[
+	\sigma = \underline{x}^T\underline{y} = \underline{x}\cdot \underline{y} = 
+	\sum_{i=1}^n x_i y_i.
+\]
+This operation requires $\mathcal{O}(n)$ floating point operations
+($n$ multiplications and $n-1$ additions) on
+$2n = \mathcal{O}(n)$ floating point numbers, and only a 
+single number ($\sigma$) needs to be stored back to memory.
+
+
+
+\begin{figure}
+\centering
+	\subfigure[Fortran]{\includegraphics[width=10cm]{daxpy-smp-fortran}}\\
+	\subfigure[BLAS]{\includegraphics[width=10cm]{daxpy-smp-blas}}
+	\caption{Performance of the daxpy operation in SMP mode. All programs are compiled with full compiler optimizations.}
+	\label{fig:daxpy-smp}
+\end{figure}
+\input{Table12.tex}
+
+\subsection{Performance results: inner product}
+
+Tables 7-10 show the performance of the inner product on \texttt{njord}. 
+
+\input{Table5.tex}
+\input{Table6.tex}
+\begin{figure}
+	\includegraphics{inner}
+	\caption{Performance of the inner product operation in a single core, 
+	single thread mode. 
+	All programs are compiled with full compiler optimizations.
+	We now see that the specific programming language has less influence 
+	on the performance compared to the matrix-matrix operation. 
+	This can be attributed to the fact that a vector-vector operation 
+	is latency bound and that the main aspect limiting the performance is
+        how fast the machine can feed the processor data.}
+	\label{fig:inner}
+\end{figure}
+
+\input{Table7.tex}
+\begin{figure}
+	\includegraphics{inner-smt}
+	\caption{Performance of the inner product operation in single core, SMT mode.
+	All programs are compiled with full compiler optimizations.
+	We now see that the specific programming language has less influence
+	on the performance compared to the matrix-matrix operation. 
+	This can be attributed to the fact that a vector-vector operation
+        is latency bound and that the main aspect limiting the performance is
+	how fast the machine can feed the processor data.}
+	\label{fig:inner-smt}
+\end{figure}
+
+\input{Table8.tex}
+\begin{figure}
+\centering
+	\subfigure[FORTRAN]{\includegraphics[width=10cm]{inner-smp-fortran}}\\
+	\subfigure[BLAS]{\includegraphics[width=10cm]{inner-smp-blas}}
+	\caption{Performance of the inner product operation with $x \neq y$ in SMP mode. All programs are compiled with full compiler optimizations.}
+	\label{fig:inner-smp}
+\end{figure}
+
+
+\clearpage
+\subsection{Performance results: inner product (x=y)}
+
+Finally Tables 13-16 show the performance of an inner product 
+when $x$ and $y$ is the same vector.
+
+\input{Table13.tex}
+\input{Table14.tex}
+\begin{figure}
+	\includegraphics{dot}
+	\caption{Performance of the inner product operation where $x = y$.
+			 All programs are compiled with full compiler optimizations.
+			 We see that this time the language utilized has less influnces 
+			 on the performance of the operation. This can be attributed to the fact that this
+			 operation is latency bound and that the main thing limiting the performance is
+			 how fast the machine can feed the processor data.}
+	\label{fig:dot}
+\end{figure}
+\input{Table15.tex}
+\begin{figure}
+	\includegraphics{dot-smt}
+	\caption{Performance of the inner product operation where $x = y$ in SMT mode.
+			 All programs are compiled with full compiler optimizations.
+			 We see that this time the language utilized has less influnces 
+			 on the performance of the operation. This can be attributed to the fact that this
+			 operation is latency bound and that the main thing limiting the performance is
+			 how fast the machine can feed the processor data.}
+	\label{fig:dot-smt}
+\end{figure}
+
+\input{Table16.tex}
+\begin{figure}
+	\subfigure[Fortran]{\includegraphics[width=6.5cm]{dot-smp-fortran}}
+	\subfigure[BLAS]{\includegraphics[width=6.5cm]{dot-smp-blas}}
+	\caption{Performance of the inner product operation where $x = y$ in SMP mode. All programs are compiled with full compiler optimizations.}
+	\label{fig:dot-smp}
+\end{figure}
+
+\end{document}
+
+\clearpage
+\section{Discussion}
+
+
+\subsection*{Memory limitations}
+In the vector-vector operation \emph{daxpy} a vector is multiplied with a scalar,
+and the result is added to another vector, overwriting the second vector. In Fortran
+language this will look like the following loop:
+\begin{lstlisting}[language=Fortran]
+real*8 a, x(n), y(n)
+do i = 1,n
+	y(i) = y(i) + a*x(i)
+enddo
+\end{lstlisting}
+Each iteration of the loop, the two elements $x(i)$ and $y(i)$ are loaded to registers,
+a multiply-add operation is performed on the data, and the result $y(i)$ is stored
+to memory. (In addition, some indexing work and a test for completion of the loop must be
+performed. The scalar constant a can be held in a register, without any need for extra
+memory operations.)
+
+The load/store unit can be used concurrently with the floating-point units.
+Each cycle, it can perform either a load or a store operation. At best, 
+a store operatin in this example can be performed every third cycle, with two
+loads in between. Since the stored value is the result of one multiply-add operation,
+the maximum achievable performance for \emph {daxpy} is one third of peak performance.
+
+Figure \ref{fig:daxpy} demonstrates achievable performance of the daxpy operation on Njord.
+
+
+
+\subsection*{Data reuse in matrix multiplication}
+The key to higher performance than what was possible in the pervious example, is to perform
+more operations on the data that is being loaded, before storing the results.
+
+In matrix multiplication the amount of work is $\mathcal{O}\left(N^3\right)$, while the amount
+of data is $\mathcal{O}\left(N^2\right)$. Therefore, this problem has a potential for
+data resue. By rewriting the nested loop, the number of load and store operations
+can be reduce to the same as the nmber of multiply-add operations (or lower).
+
+The way this is accomplished is by performing outer loop unrolling. When this technique
+is used, a small block of values from one of the arrays is stored in registers for reuse.
+
+If both the outer loops are unrolled twice, the Fotran matrix multiplication
+loop would look similar to the following:
+\begin{lstlisting}
+do j = 1,n, 2
+	do l=1,k,2
+		b00 = b(l,j)
+		b01 = b(l,j+1)
+		b01 = b(l+1,j)
+		b11 = b(l+1,j+1)
+		do i= 1,m
+			c(i,j)   = c(i,j)   + a(i,1)  *b00
+			c(i,j+1) = c(i,j+1) + a(i,1)  *b01
+			c(i,j)   = c(i,j)   + a(i,1+1)*b10
+			c(i,j+1) = c(i,j+1) + a(i,1+1)*b11
+		enddo
+	enddo
+enddo
+\end{lstlisting}
+
+In the inner loop, there are now 6 memory operations (4 loads and 2 stores),
+whle there are 4 multiply-add operations. Four registers are needed to hold
+the constant array elements from the \emph{b} array. As the degree of unrolling
+increases, the number of memory operations can be reduced further. However,
+the number of available registers eventually becomes a bottleneck.
+
+The SGI compiler system has a Loop Nest Optimizer (LNO) module that
+performs outer loop unrolling at \emph{-O3} and higher, in an early
+compilation stage. The inner loop is unrolled if necessary in the final stages
+of the compilation, using so-called software pipelining principles.
+
+\subsection*{Cache optimizations}
+The outer loop unrolling enables the processor to reach performance levels
+close to the theoretical maximum, by converting the loop from memory
+bound to floating point bound. However, when the matrix dimension increases,
+performance will fall as lower levels of the memory hierarchy are accessed.
+
+The LNO module will use other forms of optimizations to improve cache and
+memory behavior. Loop interchange may enabled stride-1 acess to arrays. 
+If the data structures are too big to fin in (usually) L2 cache, cache blocking
+is performed. The matrices or arrays are split into smaller pieces or blocks
+that fits in cache. The matrix multiplication is then performed in a series
+of sub-matrix multiplies.
+
+Another type of optimization the LNO module performs is prefetching. Data
+can be moved from meory into cache befroe use, hiding the meory acess
+time. In a similar way load operations can be performed as early as possible
+to hide the load latency from L1 cache.
+
+The combined effect of the optimizations performed by the LNO module can
+greatly enhance performance. However, it can be hard to understand the transformed
+version of a loop like the matrix multiplication.
+
+\subsection*{Measured performance of matrix multiplication}
+The most obvious factor in performance is the matrix dimension. For $n=10$,
+high overhead costs can make performance sub-optimal. For $n=100$, and
+particular $n=500$, a good version of the code will be able to achieve
+high performance, as the data fits in L2 cache.
+
+As the matrix dimensions approaches 600, there is an increasing pressure
+on L2 cache. At $n=1000$, the performance will to a large degree be a measure
+of how effective the cache optimization techniques have been.
+
+Except for the smallest problem size, \emph{dgemm} delivers high performance.
+The BLAS library is optimized for problems sizes that needs good use of the lower
+levels of the memory herarchy. BLAS exists for all platforms used in scientific
+computing, and is often tuned by the system vendor using automated optimization techniques.
+
+For smaller problem sizes, the best performance may be achieve by the
+compiler, by carefully writing an unrolled or cache blocked version, or by a
+combination of these. The Fortran compiler was able to produce code that
+gave high performance for a range of problems sizes. The manually unrolled versions
+had decent performance as well.
+
+\subsection*{Language differences}
+It is apparent that the Fortran version of the code delivers much higher
+performance than the C version. The reason is inherent difficulties with optimization
+of C code. While performing optimizations, the particular optimal scheduling of
+instructions in an inner loop, the compiler bust be certain that the correctness of results
+are not effected.
+
+The use of pointers in C introduces a difficulty for the compiler. Two pointer
+variables may in principle refer to identical memory locations. There is no way
+for the compiler to know whether such aliasing does in fact occur. It is possible
+to specify that pointers do not point to overlapping regions of memory.
+
+For the \emph{daxpy} operation, this made it possible to achieve equal performance
+levels under C and Fortran. For the matrix multiplication, the C version showed
+improved performance using this compiler option, but the results
+were still not as good as under Fortran. This probably had to do with the use of
+two-dimentional arrays.
+
+\subsection*{Pitfalls when combining Fortran and C}
+Memory is allocated column-wise in Fortran and row-wise in C. In the BLAS library
+the Fortran convention is used. It is necessary to be careful when using two-dimensional
+arrays when call \emph{dgemm} (or other routines following the Fortran convention).
+
+To ensure correctness, there are several ways to proceed. By switching indices
+when accessing arrays in C, a ``pseduo'' column-wise allocation is achieved.
+Sometimes it may be possible to use a version of the library that accepts row-wise 
+allocation, such as the CBLAS library.
+
+It is also possible to rewrite the original matrix computation using transposed terms.
+This was done in the C version here. Since \emph{dgemm} can handle transposed arrays,
+in reality we used dgemm to compute $C^T = A^T\cdot B^T$.
+
+\subsection*{Conclusion}
+The matrix multiplication operation is an interesting problem in numerical programming.
+In principle, it may deliver high performance, by exploiting
+the potential of data reuse. However, this will not happen automatically. An 
+implementation that is performing well fro some problem sizes, may not be appropriate 
+for others.
+
+One option is to use the \emph{dgemm} routing from the BLAS Level 3 library. This may in
+particular be a good choice for large matrices. Figure \ref{fig:mxm} demonstrates
+that the compiler may produce fast code for a range of matrix dimensions that is L2 cache friendly.
+However, this may be language dependent.
+
+The compiler was able to produce very fast code from the simple Fortran triple-nested loop.
+Often bloated code is slow code. However, for the smallest problem sizes, it is possible
+to demonstrate that a carefully manually unrolled version delivers even better performance,
+even though it is using many lines of code (This is not shown here.) Performance measurements
+can help decide what will be the right way to implement a routine such as matrix multiplication.
+
+\end{document}
