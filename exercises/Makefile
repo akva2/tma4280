@@ -1,6 +1,6 @@
 tmpdir := tmp
 
-FILES := p1.pdf s1.pdf p2.pdf s2.pdf p3.pdf
+FILES := p1.pdf s1.pdf p2.pdf s2.pdf p3.pdf s3.pdf
 
 all: $(FILES)
 
@@ -20,7 +20,10 @@ s1.pdf: | $(tmpdir)
 	make -C ex1
 
 s2.pdf: | $(tmpdir)
-	make -C ex1
+	make -C ex2
+
+s3.pdf: | $(tmpdir)
+	make -C ex3
 
 clean:
 	rm -rf tmp $(FILES)

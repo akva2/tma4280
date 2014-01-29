@@ -1,0 +1,123 @@
+\documentclass[11pt]{article}
+\bibliographystyle{plain}
+\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
+\usepackage{amsmath,amssymb} 
+\usepackage{epsfig,epsf,subfigure}
+\geometry{a4paper} 
+
+
+%\documentclass{article}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1ex plus 0.5ex minus 0.2ex}
+
+\begin{document}
+ 
+\LARGE
+\begin{center}
+TMA4280: Introduction to Supercomputing
+\end{center}
+\vspace{1in}
+
+\begin{center}
+{\bf Suggested solutions} \\
+Problem set 3
+\end{center}
+
+\Large
+\vspace{0.5in}
+\begin{center}
+Spring 2012
+\end{center}
+
+\vspace{0.5in}
+
+\begin{center}
+\copyright Einar M. R{\o}nquist \\
+Department of Mathematical Sciences\\
+NTNU, N-7491 Trondheim, Norway\\
+All rights reserved
+\end{center}
+
+\large
+
+\newpage
+
+\subsection*{Exercise 1}
+Each student is advised to check this out for him- or her-self. \\
+
+Read about the LINPACK benchmark at (for example):\\
+\texttt{http://www.top500.org/project/linpack}
+
+\subsection*{Exercise 2}
+\begin{enumerate}
+\item A bus-based system is an example of a shared-memory system.
+All the processors can access any physical memory location 
+in the system. All memory locations are ``equidistant'' to all processors 
+in the sense of having the same memory access time. 
+This type of hardware configuration 
+is an example of a Symmetric MultiProcessor (SMP). 
+
+The limitation of such a configuration lies in the fact that 
+the total bandwidth is fixed (and given by the bus). 
+We can easily add more processors to the bus at a low cost, 
+but all the processors must share the same bus. 
+This limits the scalability of a bus-based approach.
+
+Note that the use of caches can reduce the bandwidth demand.
+As long as the needed data can be found in cache, there is 
+no need to use the bus. However, the data stored in caches
+are replicated from main memory, and a system for keeping the 
+caches ``consistent'' (or updated) can become a challenge.
+
+\item Similar to a bus-based system, a crossbar is also 
+associated with a shared-memory system. It also represent an
+example of a  Symmetric MultiProcessor (SMP) system. 
+Unlike a bus-based system, there are multiple paths 
+available between a processor and a memory unit,
+and between an I/O unit and a memory unit.
+By expanding the number of pathways (or the size of the crossbar)
+as the number of processors increases, a much more scalable 
+system can be constructed. However, the price for doing this 
+is high, in particular, for larger systems. Hence, a crossbar 
+is typically only used for shared-memory systems up to 
+a certain number of processors (e.g., 16 or 64).
+
+\item A mesh topology is associated with a distributed memory 
+computer, i.e., a message-passing architecture.
+Each processor is here connected to a few neighboring processors
+in a very regular pattern. The connections (or network topology)
+resemble a structured 2d mesh or a strucured 3d mesh. 
+In a 2d mesh, each processor is typically connected to 4 
+neighboring processors (East, West, North and South),
+except for the processors corresponding to the ``boundary'' 
+of the mesh. A variant of the mesh topology is the toroid
+with special connections between the processors along the 
+``boundary'' of the mesh.
+
+\item In a shared-memory architecture, all the processors
+have access to all the available memory, i.e., all the 
+processors have direct access to the global address space.
+In a distributed memory system, each processor has only 
+local memory access; data stored in memory modules associated 
+with other processors can only be reached via explicit 
+message-passing (e.g., send and receive commands).
+
+\item Yes. 
+\end{enumerate}
+
+\subsection*{Exercise 3}
+
+\begin{enumerate}
+\item Each character uses a single byte of memory. 
+Hence, we need 80 bytes to send 80 characters.
+\item Each integer uses four bytes of memory (or 32 bits). 
+Hence, we need 4KB to send 1K of integers. 
+\item Each floating point number in double precision uses eight bytes of memory 
+(or 64 bits). Hence, we need 8KB to send 1K of double precision numbers. 
+\end{enumerate}
+
+\subsection*{Exercise 4}
+No. For example, we can receive a message using MPI\_ANY\_TAG. 
+
+\end{document}
