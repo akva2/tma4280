@@ -1,0 +1,53 @@
+project(timing)
+
+cmake_minimum_required(VERSION 2.6)
+
+enable_language(C)
+enable_language(Fortran)
+
+add_subdirectory(../common common)
+
+include_directories(${COMMON_INCLUDE_PATHS})
+add_definitions(${COMMON_DEFINITIONS})
+list(APPEND CMAKE_C_FLAGS ${COMMON_C_FLAGS})
+
+set(FLAG 0)
+foreach(OPT 0 1 2 3)
+  foreach(SIZE 100 500 1000 1500)
+    set(pname mxm-f-O${OPT}-${SIZE})
+    configure_file(mxm.f ${pname}.f @ONLY)
+    add_executable(${pname} ${pname}.f)
+    target_link_libraries(${pname} ${COMMON_LIBRARIES})
+    set_target_properties(${pname} PROPERTIES COMPILE_FLAGS "-O${OPT}")
+  endforeach()
+endforeach()
+
+set(FLAG 1)
+set(SIZE 10)
+foreach(OPT 0 1 2 3)
+  set(pname mxm-unr-f-O${OPT})
+  configure_file(mxm.f ${pname}.f @ONLY)
+  add_executable(${pname} ${pname}.f)
+  target_link_libraries(${pname} ${COMMON_LIBRARIES})
+  set_target_properties(${pname} PROPERTIES COMPILE_FLAGS "-O${OPT}")
+  add_executable(mxm-O${OPT} mxm.c)
+  target_link_libraries(mxm-O${OPT} ${COMMON_LIBRARIES})
+  set_target_properties(mxm-O${OPT} PROPERTIES COMPILE_FLAGS "-O${OPT}")
+endforeach()
+
+set(FLAG 1)
+foreach(OPT 0 1 2 3)
+  foreach(SIZE 100 1000 10000 100000 1000000 10000000)
+    set(pname daxpy-f-O${OPT}-${SIZE})
+    configure_file(daxpy.f ${pname}.f @ONLY)
+    add_executable(${pname} ${pname}.f)
+    target_link_libraries(${pname} ${COMMON_LIBRARIES})
+    set_target_properties(${pname} PROPERTIES COMPILE_FLAGS "-O${OPT}")
+  endforeach()
+  add_executable(daxpy-O${OPT} daxpy.c)
+  target_link_libraries(daxpy-O${OPT} ${COMMON_LIBRARIES})
+  set_target_properties(daxpy-O${OPT} PROPERTIES COMPILE_FLAGS "-O${OPT}")
+endforeach()
+
+# copy job script to build tree
+file(COPY timing.sh DESTINATION ${CMAKE_BINARY_DIR})
