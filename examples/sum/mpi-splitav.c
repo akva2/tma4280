@@ -76,9 +76,10 @@ int main(int argc, char** argv)
   A = createMatrixMPI(N, -1, N, N, &WorldComm);
   // identity matrix
   for (i=0;i<A->cols;++i)
-    A->data[i][i] = 1.0;
-  
+    A->data[i][i+A->as_vec->displ[A->as_vec->comm_rank]/N] = 1.0;
+
   v = createMatrixMPI(-1, K, N, K, &WorldComm);
+
   // fill with column number
   for (i=0;i<v->rows;++i)
     for (j=0;j<v->cols;++j)
