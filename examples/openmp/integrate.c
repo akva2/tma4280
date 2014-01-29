@@ -33,11 +33,16 @@ int main(int argc, char **argv)
   double t1, t2, dt;
   int n, myid, nproc, i;
 
-  printf ("Enter the number of intervals:\n");
-  i = scanf ("%d",&n);
+  if (argc < 2) {
+    printf("need at least one parameter, the number of intervals\n");
+    return 1;
+  }
+
+  n = atoi(argv[1]);
+
   if (n <= 0) {
     printf("Error, %i intervals make no sense, bailing\n", n);
-    return 1;
+    return 2;
   }
 
   t1 = WallTime();
