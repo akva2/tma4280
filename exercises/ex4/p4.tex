@@ -1,0 +1,132 @@
+\documentclass[11pt]{article}
+\bibliographystyle{plain}
+\usepackage{geometry} % see geometry.pdf on how to lay out the page. There's lots.
+\usepackage{amsmath,amssymb} 
+\usepackage{epsfig,epsf,subfigure}
+\geometry{a4paper} 
+
+
+\begin{document}
+ 
+\LARGE
+\begin{center}
+TMA4280: Introduction to Supercomputing
+\end{center}
+\vspace{1in}
+
+\begin{center}
+{\bf Problem set 4}
+\end{center}
+
+\Large
+\vspace{0.5in}
+\begin{center}
+Spring 2014
+\end{center}
+
+\vspace{0.5in}
+
+{\bf NOTE THAT}:
+\begin{itemize}
+  \item this problem set is mandatory;
+  \item you can work on this problem in groups with up to 3 members;
+  \item a report describing the solution should be written (as continous text);
+  \item the source code should be handed in with the report (do not attach it to the report);
+  \item please make sure that you have answered all the questions; 
+  \item the due date is Monday, February 17, 2012;
+  \item the report will count 10\% towards the final grade.
+\end{itemize}
+
+\vspace{0.5in}
+
+\begin{center}
+\copyright Einar M. R{\o}nquist \\
+Department of Mathematical Sciences\\
+NTNU, N-7491 Trondheim, Norway\\
+All rights reserved
+\end{center}
+
+\large
+
+\newpage
+
+\noindent 
+Consider a vector $\underline{v} \in \mathbb{R}^n$ where the vector elements are defined as
+\begin{align}
+  v(i) = \frac{1}{i^2}, \qquad i=1,\ldots, n. 
+\end{align}
+We want to compute the sum of all the vector elements numerically, i.e., 
+we want to find $S_n$ where
+\begin{align}
+  S_n = \sum_{i=1}^n v(i).
+\end{align}
+Note that the limit $S = \lim_{n\rightarrow\infty} S_n = \pi^2/6$; e.g., see Rottman.
+\vspace{1cm}
+
+\begin{enumerate}
+\item Write a program (either in C or in FORTRAN) which will do the following: \\
+- generate the vector $\underline{v}$; \\
+- compute the sum $S_n$ in double precision on a single processor; \\
+- compute the difference $S-S_n$ for $n=2^k$, with $k=3,\ldots,14$; \\
+- print out the difference $S-S_n$ in double precision.
+
+\item Do the necessary changes to utilize shared memory parallelization
+through OpenMP.
+
+\item Write a program to compute the sum $S_n$ using $P$ processors
+where $P$ is a power of 2, and a distributed memory model (MPI).
+The program should work as follows:
+Only processor 0 should be responsible for generating the vector elements. 
+Processor 0 should partition and distribute the vector elements evenly 
+among all the processors. 
+Each processor should be responsible for summing up its own part. 
+At the end, all the partial sums should be added together and made available 
+on processor 0 for printout. Report the difference $S-S_n$ in double precision 
+for different values of $n$.
+
+\item Confirm that your program also works when you are using OpenMP/MPI in combination.
+
+\item Which MPI calls are convenient/necessary to use?
+\item Compare the difference $S-S_n$ from the single-processor program and the 
+multi-processor program when $P=2$ and when $P=8$. 
+Should the answer be the same in all these cases?
+\item Compare the memory requirement per processor for the 
+single-processor program and the multi-processor program when $n\gg1 $.
+\item How many floating point operations are needed to generate the vector $\underline{v}$?\\
+How many floating point operations are needed to compute $S_n$ in (2)? \\  
+Is the multi-processor program load-balanced?
+\item Do you think parallel processing is attractive to use for solving this problem?
+%\item Is there an analytic answer for $S_n$ when $n \rightarrow \infty$?
+\end{enumerate}
+
+
+\end{document}
+
+Initially, the other processes do not know the content of the vector $\underline{v}$
+or what $n$ is. The only thing known to the other processes are: 
+(i) the vector length $n$ is a power of 2; 
+(ii) the number of processes is a power of 2; 
+(iii) the vector $\underline{v}$ will be split into $P$ equal parts; 
+(iv) each process is responsible for summing up its own part.  
+At the end, all the partial sums are added together on process 0
+and printed out. 
+
+
+\subsection*{Exercise 3}
+
+Let $\underline{Q}$ be an $(n-1)\times (n-1)$ matrix 
+defined by the matrix elements
+\begin{eqnarray*}
+Q_{ij} = \sqrt{\frac{2}{n}} \cdot sin(\frac{i\,j\,\pi}{n}) \,\,\, ,
+\hspace{.5in}1\,\,\leq\,\, i,j\,\,\leq\,\, n-1 \,\,\, .
+\end{eqnarray*}
+
+\begin{enumerate}
+\item Make a program (either in C or in FORTRAN) which computes 
+the matrix-matrix product $\underline{M} = \underline{Q}^T
+\underline{Q}$ for a general $n$. 
+\item Test the correctness of your program by experimenting
+with different values of parameter $n$. \\
+Hint: does the matrix $\underline{M}$ have any characteristic 
+structure?
+\end{enumerate}
