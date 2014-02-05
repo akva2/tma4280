@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <stdio.h>
+#include "blaslapack.h"
 
 #ifdef HAVE_MPI
 MPI_Comm WorldComm;
@@ -225,4 +226,29 @@ double WallTime ()
   gettimeofday(&tmpTime,NULL);
   return tmpTime.tv_sec + tmpTime.tv_usec/1.0e6;
 #endif
+}
+
+double dotproduct(Vector u, Vector v)
+{
+  double locres, res;
+  locres = ddot(&u->len, u->data, &u->stride, v->data, &v->stride);
+
+#ifdef HAVE_MPI
+  if (u->comm_size > 1) {
+    MPI_Allreduce(&locres, &res, 1, MPI_DOUBLE, MPI_SUM, *u->comm);
+    return res;
+  }
+#endif
+
+  return locres;
+}
+
+void MxV(Vector u, Matrix A, Vector v)
+{
+  char trans='N';
+  double onef=1.0;
+  double zerof=0.0;
+  int one=1;
+  dgemv(&trans, &A->rows, &A->cols, &onef, A->data[0], &A->rows, v->data,
+        &one, &zerof, u->data, &one);
 }

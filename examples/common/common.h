@@ -112,4 +112,16 @@ int getCurrentThread();
 //! \return The current wall time in seconds
 double WallTime();
 
+//! \brief Perform a dot product
+//! \param u First vector
+//! \param v Second vector
+//! \return Value of dot product
+double dotproduct(Vector u, Vector v);
+
+//! \brief Perform a matrix-vector product
+//! \param u Resulting vector
+//! \param A The matrix
+//! \param v The vector to operate on
+void MxV(Vector u, Matrix A, Vector v);
+
 #endif
