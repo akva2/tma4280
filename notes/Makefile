@@ -1,6 +1,7 @@
 tmpdir := tmp
 
-FILES := intro.pdf single.pdf git.pdf multi_notes.pdf openmp_notes.pdf basic.pdf
+FILES := intro.pdf single.pdf git.pdf multi_notes.pdf openmp_notes.pdf basic.pdf \
+  	 poisson.pdf
 all: $(FILES)
 
 $(tmpdir):
@@ -23,6 +24,9 @@ openmp_notes.pdf: | $(tmpdir)
 
 basic.pdf: | $(tmpdir)
 	make -C 05.basic
+
+poisson.pdf: | $(tmpdir)
+	make -C 06.poisson
 
 clean:
 	rm -rf tmp $(FILES)
