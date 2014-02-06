@@ -134,7 +134,7 @@ Matrix createMatrix(int n1, int n2)
     result->row[i] = malloc(sizeof(vector_t));
     result->row[i]->len = n2;
     result->row[i]->stride = n1;
-    result->row[i]->data = result->data[0]+n1;
+    result->row[i]->data = result->data[0]+i;
   }
 
   return result;
