@@ -1,4 +1,5 @@
 #include "common.h"
+#include <math.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <stdio.h>
@@ -253,4 +254,79 @@ void MxV(Vector u, Matrix A, Vector v)
   int one=1;
   dgemv(&trans, &A->rows, &A->cols, &onef, A->data[0], &A->rows, v->data,
         &one, &zerof, u->data, &one);
+}
+
+void diag(Matrix A, int diag, double value)
+{
+  int i;
+  for (i=0;i<A->rows;++i) {
+    if (i+diag >= 0 && i+diag < A->cols)
+      A->data[i+diag][i] = value;
+  }
+}
+
+Vector equidistantMesh(double x0, double x1, int N)
+{
+  double h = (x1-x0)/N;
+  Vector result = createVector(N+1);
+  int i;
+
+  for (i=0;i<N+1;++i)
+    result->data[i] = i*h;
+
+  return result;
+}
+
+void evalMeshInternal(Vector u, Vector grid, function1D func)
+{
+  int i;
+  for (i=1;i<grid->len-1;++i)
+    u->data[i-1] = func(grid->data[i]);
+}
+
+void scaleVector(Vector u, double alpha)
+{
+  dscal(&u->len, &alpha, u->data, &u->stride);
+}
+
+void axpy(Vector y, const Vector x, double alpha)
+{
+  daxpy(&x->len, &alpha, x->data, &x->stride, y->data, &y->stride);
+}
+
+
+void lusolve(Matrix A, Vector x, int** ipiv)
+{
+  if (*ipiv == NULL)
+    *ipiv = malloc(x->len*sizeof(int));
+  int one=1;
+  int info;
+  dgesv(&x->len,&one,A->data[0],&x->len,*ipiv,x->data,&x->len,&info);
+  if (info < 0)
+    printf("error solving linear system [%i]\n", info);
+}
+
+void llsolve(Matrix A, Vector x)
+{
+  int one=1;
+  int info;
+  char uplo='U';
+  dposv(&uplo,&x->len,&one,A->data[0],&x->len,x->data,&x->len,&info);
+  if (info < 0)
+    printf("error solving linear system [%i]\n", info);
+}
+
+double maxNorm(const Vector x)
+{
+  // idamax is a fortran function, and the first index is 1
+  // since indices in C are 0 based, we have to decrease it 
+  double result = fabs(x->data[idamax(&x->len, x->data, &x->stride)-1]);
+#ifdef HAVE_MPI
+  if (x->comm_size > 1) {
+    double r2=result;
+    MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_MAX, *x->comm);
+  }
+#endif
+
+  return result;
 }

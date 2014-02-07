@@ -11,6 +11,12 @@ extern MPI_Comm SelfComm;
 #include <omp.h>
 #endif
 
+//! \brief value of pi
+#define M_PI            3.14159265358979323846
+
+#define max(x,y) ((x)>(y)?(x):(y))
+#define min(x,y) ((x)<(y)?(x):(y))
+
 //! \brief A structure describing a vector
 typedef struct {
   double* data;   //!< The vector data
@@ -43,6 +49,9 @@ typedef struct {
 
 //! \brief Convenience typedef
 typedef matrix_t* Matrix;
+
+//! \brief A function taking one double argument, returning a double argument
+typedef double (*function1D)(double x);
 
 //! \brief Initialize the application, possibly initializing MPI
 //! \param argc Number of command line parameters
@@ -123,5 +132,63 @@ double dotproduct(Vector u, Vector v);
 //! \param A The matrix
 //! \param v The vector to operate on
 void MxV(Vector u, Matrix A, Vector v);
+
+//! \brief Fill a diagonal of a matrix with a constant value
+//! \param A The matrix to fill the diagonal for
+//! \param diag The offset from the main diagonal
+//! \param value The value to fill with
+void diag(Matrix A, int diag, double value);
+
+//! \brief Create an equidistant mesh
+//! \param x0 The starting point
+//! \param x1 The ending point
+//! \param N The number of grid points - 1
+Vector equidistantMesh(double x0, double x1, int N);
+
+//! \brief Evaluate a function on the internal points of a mesh
+//! \param u The resulting values
+//! \param grid The grid
+//! \param func The function to evaluate
+void evalMeshInternal(Vector u, Vector grid, function1D func);
+
+//! \brief Scale a vector
+//! \param alpha The scaling factor
+void scaleVector(Vector u, double alpha);
+
+//! \brief y = alpha*x + y
+//! \param y y vector
+//! \param x x vector
+//! \param alpha alpha value
+void axpy(Vector y, const Vector x, double alpha);
+
+//! \brief Solve a linear system using gaussian elimination (LU)
+//! \param A The matrix to solve for
+//! \param x Right hand side on entry, solution on return
+//! \param ipiv An array pointing to pivot numbers. If null on entry we allocate
+void lusolve(Matrix A, Vector x, int** ipiv);
+
+//! \brief Solve a banded linear system using gaussian elimination (LU)
+//! \param A The matrix to solve for
+//! \param x Right hand side on entry, solution on return
+//! \param ipiv An array pointing to pivot numbers. If null on entry we allocate
+//! \param kl Number of subdiagonals
+//! \param ku Number of superdiagonals
+void bdlusolve(Matrix A, Vector x, int** ipiv, int kl, int ku);
+
+//! \brief Solve a linear system using cholesky factorization (LL^T)
+//! \param A The matrix to solve for
+//! \param x Right hand side on entry, solution on return
+void llsolve(Matrix A, Vector x);
+
+//! \brief Find the inf norm of a vector: \f$\|u\|_\infty\f$
+//! \param u The u vector
+//! \return The inf-norm of the vector
+double maxNorm(const Vector u);
+
+//! \brief Copy a full matrix into banded format
+//! \param A The full matrix
+//! \param kl The number of subdiagonals
+//! \param ku The number of superdiagonals
+Matrix makeBanded(Matrix A, int kl, int ku);
 
 #endif
