@@ -7,7 +7,7 @@
 void myMxV(Vector u, Matrix A, Vector v)
 {
   int i, j;
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) private(j)
   for (i=0;i<A->rows;++i) {
     u->data[i] = 0.0;
     for (j=0;j<A->cols;++j)
