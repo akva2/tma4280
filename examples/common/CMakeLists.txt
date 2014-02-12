@@ -2,6 +2,7 @@ project(commonlib)
 cmake_minimum_required(VERSION 2.6)
 
 enable_language(C)
+enable_language(Fortran)
 
 option(ENABLE_OPENMP "Enable OpenMP support?" ON)
 option(ENABLE_MPI    "Enable MPI support?" ON)
