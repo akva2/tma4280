@@ -11,6 +11,12 @@ extern MPI_Comm SelfComm;
 #include <omp.h>
 #endif
 
+//! \brief value of pi
+#define M_PI            3.14159265358979323846
+
+#define max(x,y) ((x)>(y)?(x):(y))
+#define min(x,y) ((x)<(y)?(x):(y))
+
 //! \brief A structure describing a vector
 typedef struct {
   double* data;   //!< The vector data
@@ -43,6 +49,12 @@ typedef struct {
 
 //! \brief Convenience typedef
 typedef matrix_t* Matrix;
+
+//! \brief A function taking one double argument, returning a double argument
+typedef double (*function1D)(double x);
+
+//! \brief A function taking two double arguments, returning a double argument
+typedef double (*function2D)(double x, double y);
 
 //! \brief Initialize the application, possibly initializing MPI
 //! \param argc Number of command line parameters
@@ -100,6 +112,11 @@ Matrix createMatrixMPI(int n1, int n2, int N1, int N2, MPI_Comm* comm);
 //! \param A The matrix to free
 void freeMatrix(Matrix A);
 
+//! \brief Transpose a matrix \f$A = B^T\f$
+//! \param A The transposed matrix
+//! \param B The matrix to transpose
+void transposeMatrix(Matrix A, const Matrix B);
+
 //! \brief Get the maximum number of available threads
 //! \return Number of available threads
 int getMaxThreads();
@@ -118,10 +135,102 @@ double WallTime();
 //! \return Value of dot product
 double dotproduct(Vector u, Vector v);
 
-//! \brief Perform a matrix-vector product
+//! \brief Perform a matrix-vector product \f$u = \alpha op(A) v + \beta u$\f
 //! \param u Resulting vector
 //! \param A The matrix
 //! \param v The vector to operate on
-void MxV(Vector u, Matrix A, Vector v);
+//! \param alpha Alpha value
+//! \param beta Beta value
+//! \param trans 'T' for transpose, 'N' for no transpose
+void MxV(Vector u, Matrix A, Vector v, double alpha, double beta, char trans);
+
+//! \brief Perform a matrix-matrix product \f$U = \alpha op(A)op(v) + \beta u$\f
+//! \param U Resulting matrix
+//! \param A The matrix to operate with
+//! \param V The matrix to operate on
+//! \param alpha Alpha value
+//! \param beta Beta value
+//! \param transA 'T' for transpose of A, 'N' for no transpose
+//! \param transV 'T' for transpose of V, 'N' for no transpose
+void MxM(Matrix U, Matrix A, Matrix V, double alpha, double beta,
+         char transA, char transV);
+
+//! \brief Fill a diagonal of a matrix with a constant value
+//! \param A The matrix to fill the diagonal for
+//! \param diag The offset from the main diagonal
+//! \param value The value to fill with
+void diag(Matrix A, int diag, double value);
+
+//! \brief Create an equidistant mesh
+//! \param x0 The starting point
+//! \param x1 The ending point
+//! \param N The number of grid points - 1
+Vector equidistantMesh(double x0, double x1, int N);
+
+//! \brief Evaluate a function on the internal points of a mesh
+//! \param u The resulting values
+//! \param grid The grid
+//! \param func The function to evaluate
+void evalMeshInternal(Vector u, Vector grid, function1D func);
+
+//! \brief Evaluate a function on the internal points of a 2D mesh
+//! \param u The resulting values
+//! \param grid The grid
+//! \param func The function to evaluate
+//! \param border If 1, space is reserved for boundary in the matrix
+void evalMeshInternal2(Matrix u, Vector grid, function2D func, int boundary);
+
+//! \brief Scale a vector
+//! \param alpha The scaling factor
+void scaleVector(Vector u, double alpha);
+
+//! \brief y = alpha*x + y
+//! \param y y vector
+//! \param x x vector
+//! \param alpha alpha value
+void axpy(Vector y, const Vector x, double alpha);
+
+//! \brief Solve a linear system using gaussian elimination (LU)
+//! \param A The matrix to solve for
+//! \param x Right hand side on entry, solution on return
+//! \param ipiv An array pointing to pivot numbers. If non-null on entry the matrix is
+//!             assumed prefactored.
+void lusolve(Matrix A, Vector x, int** ipiv);
+
+//! \brief Solve a linear system using cholesky factorization (LL^T)
+//! \param A The matrix to solve for
+//! \param x Right hand side on entry, solution on return
+//! \param prefactored If 1, A is prefactored
+void llsolve(Matrix A, Vector x, int prefactored);
+
+//! \brief Apply backward/forward substitution to a system of equations \f$x = A^{-1}b\f$ or \f$x = A^{-T}b\f$
+//! \param[in] A The A matrix data
+//! \param x The right hand side matrix data on entry, the solution on return
+//! \param[in] uplo If 'U' A is upper triangular, if 'L' A is lower triangular
+void lutsolve(const Matrix A, Vector x, char uplo);
+
+//! \brief Find the inf norm of a vector: \f$\|u\|_\infty\f$
+//! \param u The u vector
+//! \return The inf-norm of the vector
+double maxNorm(const Vector u);
+
+//! \brief Copy a vector: \f$y = x\f$
+//! \param y The y vector
+//! \param[in] x The x vector
+void copyVector(Vector y, const Vector x);
+
+//! \brief Fill a vector with a constant: \f$u(i) = \alpha\,\forall\,i\f$
+//! \param u The u vector
+//! \param[in] alpha The fill constant
+void fillVector(Vector u, double alpha);
+
+//! \brief Extract a subblock from a matrix
+//! \param[in] A The full matrix
+//! \param[in] r_ofs The starting row of the subblock
+//! \param[in] r Number of rows in subblock
+//! \param[in] c_ofs The starting column of the subblock
+//! \param[in] c Number of columns in subblock
+//! \return The subblock
+Matrix subMatrix(const Matrix A, int r_ofs, int r, int c_ofs, int c);
 
 #endif

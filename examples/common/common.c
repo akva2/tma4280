@@ -1,4 +1,5 @@
 #include "common.h"
+#include <math.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <stdio.h>
@@ -122,6 +123,8 @@ Matrix createMatrix(int n1, int n2)
   result->as_vec->data = result->data[0];
   result->as_vec->len = n1*n2;
   result->as_vec->stride = 1;
+  result->as_vec->comm_size = 1;
+  result->as_vec->comm_rank = 0;
   result->col = malloc(n2*sizeof(Vector));
   for (i=0;i<n2;++i) {
     result->col[i] = malloc(sizeof(vector_t));
@@ -243,12 +246,147 @@ double dotproduct(Vector u, Vector v)
   return locres;
 }
 
-void MxV(Vector u, Matrix A, Vector v)
+void MxV(Vector u, Matrix A, Vector v, double alpha, double beta, char trans)
+{
+  dgemv(&trans, &A->rows, &A->cols, &alpha, A->data[0], &A->rows, v->data,
+        &v->stride, &beta, u->data, &u->stride);
+}
+
+void MxM(Matrix U, Matrix A, Matrix V, double alpha, double beta,
+         char transA, char transV)
+{
+  dgemm(&transA, &transV, &A->rows, &V->cols, &A->cols, &alpha,
+        A->data[0], &A->rows, V->data[0], &A->cols, &beta, U->data[0], &U->rows);
+}
+
+void diag(Matrix A, int diag, double value)
+{
+  int i;
+  for (i=0;i<A->rows;++i) {
+    if (i+diag >= 0 && i+diag < A->cols)
+      A->data[i+diag][i] = value;
+  }
+}
+
+Vector equidistantMesh(double x0, double x1, int N)
+{
+  double h = (x1-x0)/N;
+  Vector result = createVector(N+1);
+  int i;
+
+  for (i=0;i<N+1;++i)
+    result->data[i] = i*h;
+
+  return result;
+}
+
+void evalMeshInternal(Vector u, Vector grid, function1D func)
+{
+  int i;
+  for (i=1;i<grid->len-1;++i)
+    u->data[i-1] = func(grid->data[i]);
+}
+
+void evalMeshInternal2(Matrix u, Vector grid, function2D func, int boundary)
+{
+  int i, j;
+  for (i=1;i<grid->len-1;++i)
+    for (j=1;j<grid->len-1;++j)
+      u->data[j-!boundary][i-!boundary] = func(grid->data[i], grid->data[j]);
+}
+
+void scaleVector(Vector u, double alpha)
+{
+  dscal(&u->len, &alpha, u->data, &u->stride);
+}
+
+void axpy(Vector y, const Vector x, double alpha)
+{
+  daxpy(&x->len, &alpha, x->data, &x->stride, y->data, &y->stride);
+}
+
+
+void lusolve(Matrix A, Vector x, int** ipiv)
+{
+  int one=1;
+  int info;
+  if (*ipiv == NULL) {
+    *ipiv = malloc(x->len*sizeof(int));
+    dgesv(&x->len,&one,A->data[0],&x->len,*ipiv,x->data,&x->len,&info);
+  } else {
+    char trans='N';
+    dgetrs(trans,&x->len,&one,A->data[0],&x->len,*ipiv,x->data,&x->len,&info);
+  }
+  if (info < 0)
+    printf("error solving linear system [%i]\n", info);
+}
+
+void llsolve(Matrix A, Vector x, int prefactored)
+{
+  int one=1;
+  int info;
+  char uplo='L';
+  if (prefactored)
+    dpotrs(&uplo,&x->len,&one,A->data[0],&x->len,x->data,&x->len,&info);
+  else
+    dposv(&uplo,&x->len,&one,A->data[0],&x->len,x->data,&x->len,&info);
+  if (info < 0)
+    printf("error solving linear system [%i]\n", info);
+}
+
+void lutsolve(Matrix A, Vector x, char uplo)
 {
   char trans='N';
-  double onef=1.0;
-  double zerof=0.0;
+  char diag='N';
   int one=1;
-  dgemv(&trans, &A->rows, &A->cols, &onef, A->data[0], &A->rows, v->data,
-        &one, &zerof, u->data, &one);
+  int info;
+  dtrtrs(&uplo, &trans, &diag, &A->rows, &one,
+         A->data[0], &A->rows, x->data, &A->rows, &info);
+}
+
+double maxNorm(const Vector x)
+{
+  // idamax is a fortran function, and the first index is 1
+  // since indices in C are 0 based, we have to decrease it 
+  double result = fabs(x->data[idamax(&x->len, x->data, &x->stride)-1]);
+#ifdef HAVE_MPI
+  if (x->comm_size > 1) {
+    double r2=result;
+    MPI_Allreduce(&r2, &result, 1, MPI_DOUBLE, MPI_MAX, *x->comm);
+  }
+#endif
+
+  return result;
+}
+
+void copyVector(Vector y, const Vector x)
+{
+  dcopy(&x->len, x->data, &x->stride, y->data, &y->stride);
+}
+
+void fillVector(Vector x, double alpha)
+{
+  int i;
+  for (i=0;i<x->len;++i)
+    x->data[i*x->stride] = alpha;
+}
+
+Matrix subMatrix(const Matrix A, int r_ofs, int r,
+                 int c_ofs, int c)
+{
+  int i, j;
+  Matrix result = createMatrix(r, c);
+  for (i=0;i<c;++i)
+    for (j=0;j<r;++j)
+      result->data[i][j] = A->data[i+c_ofs][j+r_ofs];
+
+  return result;
+}
+
+void transposeMatrix(Matrix A, const Matrix B)
+{
+  int i,j;
+  for (i=0;i<B->rows;++i)
+    for (j=0;j<B->cols;++j)
+      A->data[i][j] = B->data[j][i];
 }

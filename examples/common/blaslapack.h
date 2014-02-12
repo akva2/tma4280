@@ -11,6 +11,9 @@
   #define dgemm  dgemm_
   #define dtrmm  dtrmm_
   #define dgesv  dgesv_ 
+  #define dgetrs dgetrs_ 
+  #define dposv  dposv_ 
+  #define dgbsv  dgbsv_ 
   #define dpotrf dpotrf_
   #define dpotrs dpotrs_
   #define dtrtrs dtrtrs_

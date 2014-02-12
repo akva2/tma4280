@@ -15,7 +15,7 @@ double dosum(Matrix A, Matrix v)
   temp = createMatrix(A->rows, t);
 #pragma omp parallel for schedule(static) reduction(+:alpha)
   for(i=0;i<v->cols;++i) {
-    MxV(temp->col[getCurrentThread()],A,v->col[i]);
+    MxV(temp->col[getCurrentThread()],A,v->col[i], 1.0, 0.0);
     alpha += dotproduct(temp->col[getCurrentThread()],v->col[i]);
   }
   freeMatrix(temp);

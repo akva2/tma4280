@@ -10,7 +10,7 @@ double dosum(Matrix A, Matrix v)
   int i;
   Vector temp = createVector(A->rows);
   for (i=0;i<v->cols;++i) {
-    MxV(temp,A,v->col[i]);
+    MxV(temp,A,v->col[i], 1.0, 0.0);
     alpha += dotproduct(temp,v->col[i]);
   }
   freeVector(temp);
