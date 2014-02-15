@@ -1,0 +1,712 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{rotating}
+\usepackage{graphicx}
+\usepackage{multimedia}
+\usepackage{listings}
+
+\useinnertheme[shadow=true]{rounded}
+\useoutertheme{shadow}
+\usecolortheme{orchid}
+\usecolortheme{whale}
+
+\mode<presentation>
+
+\newcommand{\dif}{\, \mathrm{d}}
+\newcommand{\diff}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\partdiff}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\ub}[1]{\underbar{$#1$}\,}
+
+\title{TMA4280 - Introduction to supercomputing}
+\subtitle{Poisson solvers}
+\author{Arne Morten Kvarving}
+\institute{NTNU and SINTEF ICT}
+\date{February 2014}
+
+\begin{document}
+
+\maketitle
+\begin{frame}\frametitle{The problem at hand}
+  \begin{itemize}
+    \item We want to solve
+      \[
+        \ub{A}\ub{x} = \ub{b},\quad \ub{u},\ub{g} \in \mathbb{R}^N, \ub{A} \in \mathbb{R}^{NxN}.
+      \]
+      where $\ub{A}$ is the system resulting from discretizing a Poisson problem using finite differences.
+    \item We use the standard notation for matrices and vectors, i.e.
+      \[
+        \begin{bmatrix}
+          a_{11} & a_{12} & \cdots & a_{1N} \\
+          a_{21} & a_{22} & \cdots & a_{2N} \\
+          \vdots & \ddots \\
+          a_{N1} & \cdots & & a_{NN}
+        \end{bmatrix}	\begin{bmatrix}
+          x_1 \\
+          x_2 \\
+          \ddots \\
+          x_N
+        \end{bmatrix} = \begin{bmatrix}
+          b_1\\
+          b_2 \\
+          \ddots\\
+          b_N
+        \end{bmatrix}
+      \]
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Computer algorithms}
+  \begin{itemize}
+    \item We know that the solution is given by
+      \[
+        \ub{x} = \ub{A}^{-1}\ub{b}.
+      \]
+    \item Explicitly forming the inverse $\ub{A}^{-1}$ is expensive, round-off prone
+        and something we seldom do on computers.
+    \item Rather we implement algorithms which solve a linear system given a 
+        right-hand side vector.
+    \item Which algorithm we (can) use is dependent on the structure and properties of
+        the matrix $\ub{A}$.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Computer algorithms}
+  \begin{itemize}
+    \item Trivial example: If $\ub{A}$ is orthogonal, then
+      \[
+        \ub{x} = \ub{A}^T\ub{b}.
+      \]
+    \item Orthogonal matrices are more the exception than a rule.
+    \item We are more likely to exploit
+      \begin{itemize}
+        \item Symmetry
+        \item Definiteness
+        \item Sparsity
+      \end{itemize}
+    \item We will now consider different algorithms, their implementation and their
+      usability in a parallel context.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{General matrices - the hammer of linear algebra}
+  \begin{itemize}
+    \item In your elementary course in linear algebra you learned two ways to invert
+      general matrices.
+      \item First was Cramer's rule: The solution to a linear system
+        \[
+          \ub{A}\ub{x} = \ub{b}
+        \]
+        can be found by repeatedly applying the rule
+        \[
+          x_i = \frac{\det\left(\ub{A}_i\right)}{\det\left(\ub{A}\right)}\quad \forall i
+        \]
+        where $\ub{A}_i$ is formed by replacing column $i$ in $\ub{A}$ with $\ub{b}$.
+      \item Naive\footnote{Somebody found a smarter way in later years which does it in polynomial time}
+            implementations scales as $N!$ - unusable in real-life calculations.
+    \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{General matrices - the hammer of linear algebra}
+  \begin{itemize}
+    \item Thus, we rather resort to Gaussian elimination. 
+    \item This is a systematic procedure
+      that allows us to transform the matrix $\ub{A}$ into a triangular form,
+      which allows for easy inversion using backward substitutions.
+      \[
+        \begin{bmatrix}
+          x & x & x & x & x \\
+          0 & x & x & x & x \\ 
+          0 & 0 & x & x & x \\ 
+          0 & 0 & 0 & x & x \\ 
+          0 & 0 & 0 & 0 & x
+        \end{bmatrix}
+      \]
+    \item Last equation is trivial, solve that, plug value into next-to-last equation, which
+      makes that trivial, rinse and repeat.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{General matrices - the hammer of linear algebra}
+  \begin{itemize}
+    \item The equations are on the form
+      \[
+        \begin{aligned}
+          a_{11}x_1 &+ a_{12}x_2 &+ \cdots & +a_{1N}x_N &= b_1 \\
+                                             a_{21}x_1 &+ a_{22}x_2 &+ \cdots & +a_{2N}x_N &= b_2 \\
+                                                                                          &\ \vdots  & & &=\ \ \vdots
+        \end{aligned}
+      \]
+    \item We want to get rid of the term $a_{21}x_1$. We do this by applying the
+      row-operation $\left(\text{row 2}\right)-\frac{a_{21}}{a_{11}}\left(\text{row 1}\right)$.
+    \item This yields
+      \[
+        \begin{aligned}
+          a_{11}x_1 &+ a_{12}x_2 &+ \cdots & +a_{1N}x_N &= b_1 \\
+                                                     0 &+ \left(a_{22}-\frac{a_{21}}{a_{11}}a_{12}\right)x_2 &+ \cdots & +a_{2N}x_N &= b_2 -\frac{a_{21}}{a_{11}}b_1 \\
+                                                                                          &\ \vdots  & & &=\ \  \vdots
+        \end{aligned}
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{General matrices - the hammer of linear algebra}
+  \begin{itemize}
+    \item We now repeat this for all
+      \begin{itemize}
+        \item All rows,
+        \item all columns beneath the diagonal.
+      \end{itemize}
+    \item Requirement: We need $a_{kk} \neq 0$. If not, we have to exchange two
+      rows. This is called \emph{pivoting}.
+    \item Additionally, since we are working in limited precision numbers, we want
+      $a_{kk} \gg 0$ to limit cancellation errors. Thus, we should always choose
+      the row with the largest $a_{kk}$ - this is called partial pivoting.
+    \item This is a procedure with very simple rules $\Rightarrow$ very suitable for
+      implementation on a computer.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{General matrices - the hammer of linear algebra}
+  \begin{itemize}
+    \item Two problems with vanilla Gaussian elimination:
+      \begin{itemize}
+        \item We also have to modify the right-hand side vector $\ub{b}$. This means
+          that we have to redo the entire factorization if the vector changes.
+        \item Even with partial pivoting, it is still rather prone to round-off errors.
+      \end{itemize}
+    \item For this reason, Gaussian elimination is usually implemented a bit differently
+      on a computer. Rather than transforming the matrix $\ub{A}$ into triangular form,
+      we seek two matrices $\ub{L}, \ub{U}$ such that $\ub{A} = \ub{L}\ub{U}$, where
+      $\ub{L}$ is lower triangular and $\ub{U}$ is upper triangular.
+    \item The factorization phase do not involve the vector $\ub{b}$ $\Rightarrow$
+      it is reusable for different right-hand side vectors.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{General matrices - the hammer of linear algebra}
+  \begin{itemize}
+    \item We can then find the solution to a system through
+      \[
+        \begin{split}
+                \ub{A}\ub{x} &= \ub{b} \\
+          \ub{L}\ub{U}\ub{x} &= \ub{b} \Rightarrow \\
+                \ub{L}\ub{v} &= \ub{b} \\
+              \ub{U}{\ub{x}} &= \ub{v},
+        \end{split}
+      \]
+      i.e. we first apply forward substitutions and the backward substitutions.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{General matrices - the hammer of linear algebra}
+  \begin{itemize}
+    \item There is a redundancy in this approach - we have two sets of diagonal values
+      (one in $\ub{L}$, one in $\ub{U}$). This give rise to two alternative algorithms,
+      Doolittle's method and Crout's method.
+    \item We here consider Doolittle's method which chooses 1's on the diagonal of $\ub{L}$.
+    \item The algorithm can be stated as
+      \[
+        \begin{aligned}
+          u_{1k} &= a_{1k}\quad\ &k=1,\cdots,N \\
+          l_{j1} &= \frac{a_{j1}}{u_{11}}\quad &j=2,\cdots,N \\
+          u_{jk} &= a_{jk}-\sum_{s=1}^{j-1}l_{js}u_{sk}\quad &k=j,\cdots,N, j \geq 2 \\
+          l_{jk} &= \frac{1}{u_{kk}}\left(a_{jk}-\sum_{s=1}^{k-1}l_{js}u_{sk}\right)\quad &j=k+1,\cdots,N, k \geq 2.
+        \end{aligned}
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{LAPACK}
+  \begin{itemize}
+    \item LU factorization is somewhat tedious to implement, in particular in an efficient way.
+    \item Smart people have done this for you.
+    \item \emph{LAPACK} - The Linear Algebra PACK builds on the \emph{BLAS}.
+    \item Same naming conventions and matrix formats.
+    \item Just like with BLAS and CBLAS, there is a LAPACK and CLAPACK.
+    \item We stick to LAPACK (Fortran conventions).
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{LAPACK}
+  \begin{itemize}
+    \item Function prototype:
+      \lstinputlisting[basicstyle=\small]{prototype.c}
+    \item Usage:
+      \lstinputlisting[basicstyle=\small]{solve-lu.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{LAPACK}
+  \begin{itemize}
+    \item \emph{dgesv} overwrites the matrix $\ub{A}$ with the factorization $\ub{L}, \ub{U}$.
+    \item \emph{dgesv} is actually calling two functions;
+      \begin{itemize}
+        \item First it calls \emph{dgetrf} to factorize the matrix.
+        \item Then it calls \emph{dgetrs} to solve the system.
+      \end{itemize}
+    \item Thus, after the first call, if we store the pivot numbers we can solve
+      for different right-hand sides (see common library code).
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Improving the performance}
+  \begin{itemize}
+    \item While \emph{LAPACK} is efficiently implemented, it cannot do wonders.
+    \item LU-factorization scales as $\mathcal{O}\left(N^3\right)$.
+    \item Totally unrealistic numbers, but just to give you an idea of how this scales:
+      \begin{figure}
+        \begin{tabular}{c|c}
+          $N$ & $T$ \\
+          \hline
+          $10$ & 1000s = 17min \\
+         $100$ & $1\cdot 10^6$s = 11 days \\
+         $1000$ & $1\cdot 10^9$s = 31 years 
+        \end{tabular}
+       \end{figure}
+     \item Even if $\ub{A}$ is sparse, $\ub{L}$ and $\ub{U}$ is in general not.
+     \item Typically you get fill in $2b$ diagonals, where $b$ is the bandwidth
+       of the (renumbered) matrix $\ub{A}$.
+     \item We can do slightly better by exploiting symmetry.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Improving the performance}
+  \begin{itemize}
+    \item If $\ub{A}$ is symmetric and positive definite, we find that $\ub{U}=\ub{L}^T$.
+    \item Thus we can save a factor 2 in memory and a factor 2 in required FLOP.
+    \item Furthermore, no pivoting is required for such systems.
+    \item This is called Cholesky factorization.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Cholesky factorization}
+  \begin{itemize}
+    \item Function prototype:
+      \lstinputlisting[basicstyle=\small]{chol.c}
+    \item Usage:
+      \lstinputlisting[basicstyle=\small]{solve-chol.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Improving the performance}
+  \begin{itemize}
+     \item LU-factorization is very unfit for parallel implementations.
+       \begin{itemize}
+         \item It is sequential in nature (you need to eliminate for row 2 before you
+           can start to eliminate for row 3).
+         \item Pivoting requires syncronization for every row.
+         \item Substituttion phase is completely sequential (less important).
+         \item There have been some smart people working on this, looking at the
+           graph of the matrix to identify independent blocks.
+       \end{itemize}
+     \item For most systems, the results are mediocre and only scale to a 
+           few processes/threads.
+     \item Simply put, LU factorization is unusable as a solver in a parallel context.
+     \item However, it is very often utilized as a component in other algorithms.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Better approaches}
+  \begin{itemize}
+    \item Solution methods can be categorized in two classes: 
+      \begin{itemize}
+        \item Direct methods - these are methods which yields the solution is
+          a exactly countable number of operations - LU factorization is a prime example of this.
+        \item Iterative methods, which find the solution through applying some
+          iterative procedure. Not as easy to exactly count the required number
+          of operations.
+      \end{itemize}
+    \item We now consider another example of a direct method.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization}
+  \begin{itemize}
+    \item This is not a hammer. We need exploit properties of the linear system at hand.
+    \item We recall the five-point formula;
+      \begin{figure}[H]
+        \begin{center}
+          \includegraphics[width=3cm]{../../notes/07.poisson-fdm/FivePointStencil}
+        \end{center}
+      \end{figure}
+    \item This results from using the three-point formula in each spatial direction;
+      \begin{figure}[H]
+        \begin{center}
+          \includegraphics[width=3cm]{../../notes/07.poisson-fdm/ThreePointStencil}
+        \end{center}
+      \end{figure}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item In the following, we refer to the matrix resulting from applying the five-point formula
+      as $\ub{A}$, while the matrix we obtain from applying the three-point formula to
+      a 1D problem, we refer to as $\ub{T}$.
+    \item For any SPD matrix $\ub{C}$, we know that we can perform an eigendecomposition;
+      \[
+        \ub{C}\ub{Q} = \ub{Q}\ub{\Lambda},
+      \]
+      where $\ub{Q}$ is the matrix with the eigenvectors of $\ub{C}$ as columns,
+      and $\ub{\Lambda}$ is a diagonal matrix with the corresponding eigenvalues on
+      the diagonal.
+    \item Since $\ub{Q}$ is an orthogonal matrix, we equivalently have
+      \[
+        \ub{Q} = \ub{Q}\ub{\Lambda}\ub{Q}^T.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item We plug this into a linear system of equations, i.e.
+      \[
+        \begin{split}
+          \ub{C}\ub{x} &= \ub{b} \Rightarrow \\
+          \ub{Q}\ub{\Lambda}\ub{Q}^T\ub{x} &= \ub{b}.
+        \end{split}
+      \]
+    \item We multiply with $\ub{Q}^T$ from the left,
+          recalling at $\ub{Q}^T = \ub{Q}^{-1}$;
+      \[
+        \ub{\Lambda}\underbrace{\ub{Q}^T\ub{x}}_{\tilde{\ub{x}}} = \underbrace{\ub{Q}^T\ub{f}}_{\ub{\tilde{b}}}
+      \]
+    \item Thus, we can now solve the system in three steps.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{enumerate}
+    \item We calculate $\ub{b}$ through a matrix-vector product.
+      \[
+        \ub{\tilde{b}} = \ub{Q}^T\ub{x}
+      \]
+      in $\mathcal{O}\left(N^2\right)$ operations.
+    \item We solve the system
+      \[
+        \ub{\Lambda}\ub{\tilde{x}} = \ub{\tilde{b}}
+      \]
+      in $\mathcal{O}\left(N\right)$ operations (remember - $\ub{\Lambda}$ is diagonal).
+    \item We finally find the solution to the system through another matrix-vector product;
+      \[
+        \ub{x} = \ub{Q}\ub{\tilde{x}}
+      \]
+      in $\mathcal{O}\left(N^2\right)$ operations.
+  \end{enumerate}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item This looks promising - it seems we just found a way to solve the system in
+      $\mathcal{O}\left(N^2\right)$ operations instead of $\mathcal{O}\left(N^3\right)$!
+    \item Sadly not true - as we have to find the eigen decomposition of the matrix.
+    \item This scales as $\mathcal{O}\left(N^3\right)$ so we are back to square 1.
+    \item However, if we consider a certain 2D problems, this changes.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item We constructed the $\ub{A}$ matrix as the sum of applying the three-point
+      formula in $x$ and $y$.
+    \item In the language of linear algebra, this translates to a tensor-product, that is
+      \[
+        \ub{A} = \ub{I}\otimes\ub{T} + \ub{T}\otimes\ub{I}.
+      \]
+    \item It turns out we have a very nice relation we can use here.
+    \item If we have an operator on this form in a global numbering scheme, and
+      an associated linear system
+      \[
+        \ub{A}\ub{x} = \ub{b}
+      \]
+      we can equivalently state this is
+      \[
+        \ub{T}\ub{X} + \ub{X}\ub{T}^T = \ub{B}
+      \]
+      in a local numbering scheme.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item A global numbering scheme is a scheme where we number the unknowns using a single index
+      - this naturally maps to a vector.
+    \item A local numbering scheme is a scheme where we number the unknowns using one index for each spatial direction
+      - this naturally maps to a matrix.
+    \item Thus, we consider a system of matrix equations.
+    \item An alternative way of deriving the equations; we first operate with $\ub{T}$
+      along the columns of $\ub{X}$, then along the rows of $\ub{X}$, i.e.
+      \[
+        \underbrace{\ub{T}\ub{X}}_{\text{operate along columns, i.e. in x}} + \underbrace{\left(\ub{T}\ub{X}^T\right)^T}_{\text{operate along rows, i.e. in y}}.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item We now plug the diagonalization of $\ub{T}$ into the discretization
+      of the 2D Poisson problem, recalling that $\ub{T}$ is symmetric;
+      \[
+        \begin{split}
+          \ub{T}\ub{X} + \ub{X}\ub{T} &= \ub{B} \Rightarrow \\
+          \ub{Q}\ub{\Lambda}\ub{Q}^T\ub{X} + \ub{X}\ub{Q}\ub{\Lambda}\ub{Q}^T &= \ub{B}.
+        \end{split}
+      \]
+    \item We multiply with $\ub{Q}$ from the right
+      \[
+        \ub{Q}\ub{\Lambda}\ub{Q}^T\ub{X}\ub{Q} + \ub{X}\ub{Q}\ub{\Lambda} = \ub{B}\ub{Q}.
+      \]
+    \item We then multiply with $\ub{Q}^T$ from the left;
+      \[
+        \ub{\Lambda}\underbrace{\ub{Q}^T\ub{X}\ub{Q}}_{\ub{\tilde{X}}} + \underbrace{\ub{Q}^T\ub{X}\ub{Q}}_{\ub{\tilde{X}}}\ub{\Lambda} = \underbrace{\ub{Q}^T\ub{B}\ub{Q}}_{\ub{\tilde{B}}},
+      \]
+      or
+      \[
+        \ub{\Lambda}\ub{\tilde{X}} + \ub{\tilde{X}}\ub{\Lambda} = \ub{\tilde{B}}.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  We then find the solution in three steps
+  \begin{enumerate}
+    \item We calculate $\ub{\tilde{B}}$ through two matrix-matrix products.
+      \[
+        \ub{\tilde{B}} = \ub{Q}^T\ub{B}\ub{Q}.
+      \]
+      in $\mathcal{O}\left(N^3\right)$ operations.
+    \item We solve the system
+      \[
+        \begin{split}
+          \tilde{x}_{ij} = \frac{\tilde{b}_{ij}}{\lambda_i+\lambda_j}\quad 1 \leq i,j \leq N
+        \end{split}
+      \]
+      in $\mathcal{O}\left(N^2\right)$.
+    \item We finally find the solution to the system through two matrix-matrix products;
+      \[
+        \ub{X} = \ub{Q}\ub{\tilde{X}}\ub{Q}^T
+      \]
+      in $\mathcal{O}\left(N^3\right)$ operations.
+  \end{enumerate}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item We now have a very fast algorithm.
+    \item The operation count scales very well with the number of unknowns - just $\mathcal{O}\left(N\right)$ work per unknown.
+    \item It scales perfectly in memory - we just need $\mathcal{O}\left(N^2\right)$ datas (a few numbers per unknown).
+    \item It is also parallelizable - a few large, global data exchanges would be needed
+      (the transpositions of the matrix). You will get to study how this scales in exercise 6.
+    \item Compare this to LU factorization - which would required
+      $\mathcal{O}\left(M^2\right) = \mathcal{O}\left((N^2)^6\right) = \mathcal{O}\left(N^6\right)$ operations
+      and
+      $\mathcal{O}\left(N^4\right)$ storage.
+    \item It beats sparse/banded LU as well. It would require
+      $\mathcal{O}\left(N^4\right)$ operations and $\mathcal{O}\left(N^3\right)$ storage.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item The diagonalization method is quite general, applicable to any SPD system with
+      a tensor-product operator.
+    \item We used the particular problem to make it more easily understandable (I hope!)
+    \item It turns out that if we use more information from the Poisson problem,
+      we can do even better!
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item The continuous eigenvalue problem
+      \[
+        \begin{split}
+              -u_{xx} &= \lambda u \quad \text{in } \Omega=(0,1)\\
+          u(0) = u(1) &= 0.
+        \end{split}
+      \]
+      has solutions
+      \[
+         \begin{split}
+            \bar{u}_j(x) &= \sin(j \pi x), \\
+            \bar{\lambda}_j &= j^2 \pi^2,
+         \end{split}
+         \qquad j=1,2,\ldots,\infty.
+      \]
+    \item We now consider operating with $\ub{T}$ on vectors consisting of $\bar{u}_j$
+      sampled in the grid points $x_i, i=1,\ldots,N-1$, i.e.
+      \[
+        \left(\bar{q}_j\right)_i = \bar{u}_j\left(x_i\right) = \sin\left(\frac{ij\pi}{N}\right).
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization contd.}
+  \begin{itemize}
+    \item This yields
+      \[
+        \left(\ub{T}\ub{\bar{q}}_j\right)_i = \underbrace{2\left(1-\cos\left(\frac{j\pi}{N}\right)\right)}_{\lambda j}\underbrace{\sin\left(\frac{ij\pi}{N}\right)}_{\left(\bar{q}_j\right)_i}.
+      \]
+     \item Thus, if we normalize these vectors, we have found the eigenvalues and eigenvectors of $\ub{T}$!
+     \item Normalization: $\ub{q}_j = \alpha\ub{\bar{q}}_j$ s.t.
+       \[
+         \begin{split}
+           \ub{q}_j^T\ub{q}_j = 1 \Rightarrow
+           \left(\ub{q}_j\right)_i &= \sqrt{\frac{2}{N}}\sin\left(\frac{ij\pi}{N}\right). \\ 
+                         \lambda_j &= 2\left(1-\cos\left(\frac{j\pi}{N}\right)\right).
+         \end{split}
+       \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The discrete Fourier transform}
+  \begin{itemize}
+    \item We consider a periodic function $v(x)$ with period $2\pi$.
+    \item We sample this function at equidistant points $x_j, j=0,1, \ldots, N, x_j = jh, h=\frac{2\pi}{N}$.
+    \item We name the samples $v_j = v\left(x_j\right)$.
+      \begin{figure}[H]
+        \centering
+        \includegraphics[width=7cm]{../../notes/08.poisson-diag/PeriodicFunction}
+      \end{figure}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The discrete Fourier transform contd.}
+  \begin{itemize}
+    \item Consider the vectors $\ub{\varphi}_k$, where
+      \[
+        \left(\ub{\varphi}_k\right)_j = e^{ikx_j},
+      \]
+      where
+      \[
+        e^{ikx_j} = \cos\left(kx_j\right)+i\sin\left(kx_j\right).
+      \]
+    \item These vectors form a basis for the $N$-dimensional space $\mathbb{C}^N$.
+        In particular
+        \[
+          \underline{\varphi}_k^H \underline{\varphi}_l = 
+          \begin{cases}
+            N, & k=l, \\
+            0, & k \not= l,
+          \end{cases}
+          \qquad \qquad k,l=0,1,\ldots,N-1.
+        \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The discrete Fourier transform contd.}
+  \begin{itemize}
+    \item Since these form a basis, any vector in the space can be expressed
+      as a linear combination of these vectors.
+    \item The vector 
+      \begin{equation*}
+        \underline{v} = 
+        \begin{bmatrix}
+          v_0 \\
+          \vdots \\
+          v_{N-1}
+        \end{bmatrix}
+        \in \mathbb{R}^N
+      \end{equation*}
+      can be expressed in this basis as
+
+      \begin{align*}
+        \underline{v} &= \sum_{k=0}^{N-1} \hat{v}_k \underline{\varphi}_k \\
+        \intertext{or}
+        v_j &= \sum_{k=0}^{N-1} \hat{v}_k (\underline{\varphi}_k)_j = \sum_{k=0}^{N-1} \hat{v}_k e^{ik x_j}.
+      \end{align*}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The discrete Fourier transform contd.}
+  \begin{itemize}
+    \item Here $\hat{v}_k$, are the discrete Fourier coefficients given by
+      \begin{equation*}
+        \hat{v}_k = \frac{1}{N} \sum_{j=0}^{N-1} v_j e^{-ik x_j}, \qquad \qquad 
+        \begin{matrix}
+          x_j = j h \\
+          h = \frac{2\pi}{N}
+        \end{matrix}
+        \qquad k=0,1,\ldots,N-1
+      \end{equation*}
+    \item The Fourier transform is extremely useful and has been extensively studied.
+    \item Example where it is used: Signal analysis, audio compression, video compression.
+    \item Important in the following: The DFT coefficients of an odd signal are imaginary.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The discrete Sine transform}
+  \begin{itemize}
+    \item A related transformation is the discrete sine transform, \emph{DST}.
+    \item It is applicable to a function $v(x)$ which is periodic with period
+        $2\pi$ and \emph{odd}, i.e. $v(x) = -v(x+\pi)$.
+     \item We discretize this function on a equidistant mesh between $0$ and $\pi$.
+     \item Since $v$ is odd, we know that $v\left(x_0\right) = v\left(x_N\right) = 0$.
+     \item Thus the discrete function is represented by the vector
+       \[
+        \underline{v} = 
+        \begin{bmatrix}
+          v_1 \\
+          \vdots \\
+          v_{n-1}
+        \end{bmatrix}
+        \in \mathbb{R}^{n-1}.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The discrete Sine transform}
+  \begin{itemize}
+    \item A basis for this space of (discrete) functions is given by
+    \begin{align*}
+      (\underline{\psi}_k)_j &= \sin \biggl( \frac{k j \pi}{n} \biggr), \qquad j=1,\ldots,n-1, \\
+      \intertext{and with}
+      \underline{\psi}_k^T \underline{\psi}_l &=
+      \begin{cases}
+        \frac{n}{2}, & k=l, \\
+        0, & k \not= 0.
+      \end{cases}
+    \end{align*}
+    \item Thus
+      \begin{alignat*}{2}
+        v_j &= \sum_{k=1}^{n-1} \widetilde{v}_k \sin \biggl( \frac{k j \pi}{n} \biggr) = \ub{S}^{-1}\tilde{\ub{v}}, &\qquad j&=1,\ldots,n-1, \\
+        \intertext{where}
+        \widetilde{v}_k &= \frac{2}{n} \sum_{j=1}^{n-1} v_j \sin \biggl( \frac{j k \pi}{n} \biggr)=\ub{S}\ub{v}, &\qquad  k&=1,\ldots,n-1.
+      \end{alignat*}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The DFT and DST relationship}
+  \begin{itemize}
+    \item In particular we have that
+      \[
+        \ub{Q} = \sqrt{\frac{N}{2}}\ub{S}, \ub{Q}^T = \sqrt{\frac{2}{N}}\ub{S}^{-1}.
+      \]
+    \item Consider a vector
+      \begin{align*}
+        \underline{v} &= 
+        \begin{bmatrix}
+          v_1 \\
+          \vdots \\
+          v_{n-1}
+        \end{bmatrix}
+        \in \mathbb{R}^{n-1}. \\
+        \intertext{Construct the extended vector as an ``odd'' extension}
+        w &=
+        \begin{bmatrix}
+          0 \\ 
+          v_1 \\
+          \vdots \\
+          v_{n-1} \\
+          0 \\
+          -v_{n-1} \\
+          \vdots \\
+          -v_1
+        \end{bmatrix}
+        \in \mathbb{R}^{2n}.
+      \end{align*}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{The DFT and DST relationship contd.}
+  \begin{itemize}
+    \item It turns out that the DST coefficients of $\ub{v}$ and the DFT coefficients
+      of $\ub{w}$ are related through
+      \[
+        \tilde{v}_k = 2i\tilde{w}_k, k = 1,\ldots,N-1.
+      \]
+    \item Thus we can find the DST of a vector by taking the DFT of the odd extension,
+      then multiplying the first $N-1$ coefficients with $2i$ and throwing away the rest.
+    \item There exists fast methods for computing the DFT of a signal, in particular the
+      infamous \emph{Fast Fourier Transform} method.
+    \item Requires\footnote{There are generalizations which do not} $N$ to be a power-of-two.
+    \item This manages to find the coefficients in $\mathcal{O}\left(N^2\log N\right)$ for $N^2$ coefficients.
+    \item Faster than calculating them through matrix-vector products since this is $\mathcal{O}\left(N^3\right)$.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Diagonalization using DST}
+  We then find the solution in three steps
+  \begin{enumerate}
+    \item We calculate $\ub{\tilde{B}}$ through
+      \[
+        \ub{\tilde{B}}^T = \ub{S}^{-1}\left(\left(\ub{S}\ub{B}\right)^T\right)
+      \]
+      in $\mathcal{O}\left(N^2\log N\right)$ operations.
+    \item We solve the system
+      \[
+        \begin{split}
+          \tilde{x}_{ij} = \frac{\tilde{b}_{ij}}{\lambda_i+\lambda_j}\quad 1 \leq i,j \leq N
+        \end{split}
+      \]
+      in $\mathcal{O}\left(N^2\right)$.
+    \item We finally find the solution to the system through 
+      \[
+        \ub{X} = \ub{S}^{-1}\left(\ub{S}\left(\ub{\tilde{X}}^T\right)\right)^T
+      \]
+      in $\mathcal{O}\left(N^2\log N\right)$ operations.
+  \end{enumerate}
+\end{frame}
+\end{document}

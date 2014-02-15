@@ -1,7 +1,7 @@
 tmpdir := tmp
 
 FILES := curriculum.pdf trends.pdf thetool.pdf crash.pdf multi.pdf mpi.pdf \
-  	 kongull.pdf openmp.pdf summing.pdf poisson-slides.pdf
+  	 kongull.pdf openmp.pdf summing.pdf poisson-slides.pdf poisson-solvers.pdf
 
 all: $(FILES)
 
@@ -37,6 +37,9 @@ summing.pdf: | $(tmpdir)
 
 poisson-slides.pdf: | $(tmpdir)
 	make -C 09.poisson
+
+poisson-solvers.pdf: | $(tmpdir)
+	make -C 10.solvers
 
 clean:
 	rm -rf tmp $(FILES)
