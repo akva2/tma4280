@@ -6,25 +6,30 @@
 #include "solvers.h"
 #include "poissoncommon.h"
 
-double source(double x)
-{
-  return 4*M_PI*M_PI*sin(2*M_PI*x);
-}
+double alpha=0.1;
 
 double exact(double x)
 {
-  return sin(2*M_PI*x);
+  return x*(pow(x,5.0)-1.0);
 }
+
+double source(double x)
+{
+  return -30*pow(x,4.0);
+}
+
 
 int GaussJacobiPoisson1D(Vector u, double tol, int maxit)
 {
   int it=0, i;
+  double rl;
+  double max = tol+1;
   Vector b = createVector(u->len);
   Vector e = createVector(u->len);
   copyVector(b, u);
   fillVector(u, 0.0);
-  double max = tol+1;
-  while (max > tol && ++it < maxit) {
+  rl = maxNorm(b);
+  while (max > tol*rl && ++it < maxit) {
     copyVector(e, u);
     copyVector(u, b);
 #pragma omp parallel for schedule(static)
@@ -33,7 +38,7 @@ int GaussJacobiPoisson1D(Vector u, double tol, int maxit)
         u->data[i] += e->data[i-1];
       if (i < e->len-1)
         u->data[i] += e->data[i+1];
-      u->data[i] /= 2.0;
+      u->data[i] /= (2.0+alpha);
     }
     axpy(e, u, -1.0);
     max = maxNorm(e);
@@ -48,12 +53,13 @@ int GaussSeidelPoisson1D(Vector u, double tol, int maxit)
 {
   int it=0, i, j;
   double max = tol+1;
+  double rl = maxNorm(u);
   Vector b = createVector(u->len);
   Vector r = createVector(u->len);
   Vector v = createVector(u->len);
   copyVector(b, u);
   fillVector(u, 0.0);
-  while (max > tol && ++it < maxit) {
+  while (max > tol*rl && ++it < maxit) {
     copyVector(v, u);
     copyVector(u, b);
     for (i=0;i<r->len;++i) {
@@ -61,8 +67,8 @@ int GaussSeidelPoisson1D(Vector u, double tol, int maxit)
         u->data[i] += v->data[i-1];
       if (i < r->len-1)
         u->data[i] += v->data[i+1];
-      r->data[i] = u->data[i]-2.0*v->data[i];
-      u->data[i] /= 2.0;
+      r->data[i] = u->data[i]-(2.0+alpha)*v->data[i];
+      u->data[i] /= (2.0+alpha);
       v->data[i] = u->data[i];
     }
     max = maxNorm(r);
@@ -78,6 +84,7 @@ int GaussSeidelPoisson1Drb(Vector u, double tol, int maxit)
 {
   int it=0, i, j;
   double max = tol+1;
+  double rl = maxNorm(u);
   Vector b = createVector(u->len);
   Vector r = createVector(u->len);
   Vector v = createVector(u->len);
@@ -93,8 +100,8 @@ int GaussSeidelPoisson1Drb(Vector u, double tol, int maxit)
           u->data[i] += v->data[i-1];
         if (i < r->len-1)
           u->data[i] += v->data[i+1];
-        r->data[i] = u->data[i]-2.0*v->data[i];
-        u->data[i] /= 2.0;
+        r->data[i] = u->data[i]-(2.0+alpha)*v->data[i];
+        u->data[i] /= (2.0+alpha);
         v->data[i] = u->data[i];
       }
     }
@@ -128,11 +135,24 @@ void DiagonalizationPoisson1Dfst(Vector u, const Vector lambda)
   copyVector(btilde, u);
   fst(btilde->data, &N, buf->data, &NN);
   for (i=0;i<btilde->len;++i)
-    btilde->data[i] /= lambda->data[i];
+    btilde->data[i] /= (lambda->data[i]+alpha);
   fstinv(btilde->data, &N, buf->data, &NN);
   copyVector(u, btilde);
   freeVector(btilde);
   freeVector(buf);
+}
+
+void Poisson1D(Vector u, const Vector v)
+{
+  int i;
+#pragma omp parallel for schedule(static)
+  for (i=0;i<u->len;++i) {
+    u->data[i] = (2.0+alpha)*v->data[i];
+    if (i > 0)
+      u->data[i] -= v->data[i-1];
+    if (i < u->len-1)
+      u->data[i] -= v->data[i+1];
+  }
 }
 
 int main(int argc, char** argv)
@@ -140,10 +160,10 @@ int main(int argc, char** argv)
   int i, j, N, flag;
   Matrix A=NULL, Q=NULL;
   Vector b, grid, e, lambda=NULL;
-  double time, sum, h;
+  double time, sum, h, tol=1e-4;
 
   if (argc < 3) {
-    printf("need two parameters, N and flag\n");
+    printf("need two parameters, N and flag [and tolerance]\n");
     printf(" - N is the problem size (in each direction\n");
     printf(" - flag = 1  -> Dense LU\n");
     printf(" - flag = 2  -> Dense Cholesky\n");
@@ -151,51 +171,58 @@ int main(int argc, char** argv)
     printf(" - flag = 4  -> Full Gauss-Jacobi iterations using BLAS\n");
     printf(" - flag = 5  -> Full Gauss-Seidel iterations\n");
     printf(" - flag = 6  -> Full Gauss-Seidel iterations using BLAS\n");
-    printf(" - flag = 7  -> Matrix-less Gauss-Jacobi iterations\n");
-    printf(" - flag = 8  -> Matrix-less Gauss-Seidel iterations\n");
-    printf(" - flag = 9  -> Matrix-less Red-Black Gauss-Seidel iterations\n");
-    printf(" - flag = 10 -> Diagonalization\n");
-    printf(" - flag = 11 -> Diagonalization - FST\n");
+    printf(" - flag = 7  -> Full CG iterations\n");
+    printf(" - flag = 8  -> Matrix-less Gauss-Jacobi iterations\n");
+    printf(" - flag = 9  -> Matrix-less Gauss-Seidel iterations\n");
+    printf(" - flag = 10 -> Matrix-less Red-Black Gauss-Seidel iterations\n");
+    printf(" - flag = 11 -> Diagonalization\n");
+    printf(" - flag = 12 -> Diagonalization - FST\n");
+    printf(" - flag = 13 -> Matrix-less CG iterations\n");
     return 1;
   }
   N=atoi(argv[1]);
   flag=atoi(argv[2]);
+  if (argc > 3)
+    tol = atof(argv[3]);
   if (N < 0) {
     printf("invalid problem size given\n");
     return 2;
   }
 
-  if (flag < 0 || flag > 11) {
+  if (flag < 0 || flag > 13) {
     printf("invalid flag given\n");
     return 3;
   }
 
-  if (flag == 9 && (N-1)%2 != 0) {
+  if (flag == 10 && (N-1)%2 != 0) {
     printf("need an even size for red-black iterations\n");
     return 4;
   }
-  if (flag == 11 && (N & (N-1)) != 0) {
+  if (flag == 12 && (N & (N-1)) != 0) {
     printf("need a power-of-two for fst-based diagonalization\n");
     return 5;
   }
+
+  h = 1.0/N;
 
   grid = equidistantMesh(0.0, 1.0, N);
   b = createVector(N-1);
   e = createVector(N-1);
   evalMeshInternal(b, grid, source);
-  h = grid->data[1]-grid->data[0];
+  evalMeshInternal(e, grid, exact);
   scaleVector(b, pow(h, 2));
+  axpy(b, e, alpha);
 
-  if (flag < 7) {
+  if (flag < 8) {
     A = createMatrix(N-1,N-1);
-    diag(A, -1, -1);
-    diag(A, 0, 2);
-    diag(A, 1, -1);
+    diag(A, -1, -1.0);
+    diag(A, 0, 2.0+alpha);
+    diag(A, 1, -1.0);
   }
 
-  if (flag >= 10)
+  if (flag >= 11 && flag < 13)
     lambda = generateEigenValuesP1D(N-1);
-  if (flag == 10)
+  if (flag == 11)
     Q = generateEigenMatrixP1D(N-1);
 
   time = WallTime();
@@ -208,29 +235,33 @@ int main(int argc, char** argv)
     llsolve(A,b,0);
   else if (flag == 3)
     printf("Gauss-Jacobi used %i iterations\n",
-           GaussJacobi(A, b, 1e-6, 10000000));
+           GaussJacobi(A, b, tol, 10000000));
   else if (flag == 4)
     printf("Gauss-Jacobi used %i iterations\n",
-           GaussJacobiBlas(A, b, 1e-6, 10000000));
+           GaussJacobiBlas(A, b, tol, 10000000));
   else if (flag == 5)
     printf("Gauss-Seidel used %i iterations\n",
-           GaussSeidel(A, b, 1e-6, 10000000));
+           GaussSeidel(A, b, tol, 10000000));
   else if (flag == 6)
     printf("Gauss-Seidel used %i iterations\n",
-           GaussSeidelBlas(A, b, 1e-6, 10000000));
+           GaussSeidelBlas(A, b, tol, 10000000));
   else if (flag == 7)
-    printf("Gauss-Jacobi used %i iterations\n",
-           GaussJacobiPoisson1D(b, 1e-6, 10000000));
+    printf("CG used %i iterations\n", cg(A, b, 1e-8));
   else if (flag == 8)
     printf("Gauss-Jacobi used %i iterations\n",
-           GaussSeidelPoisson1D(b, 1e-6, 10000000));
+           GaussJacobiPoisson1D(b, tol, 10000000));
   else if (flag == 9)
     printf("Gauss-Jacobi used %i iterations\n",
-           GaussSeidelPoisson1Drb(b, 1e-8, 10000000));
+           GaussSeidelPoisson1D(b, tol, 10000000));
   else if (flag == 10)
-           DiagonalizationPoisson1D(b,lambda,Q);
+    printf("Gauss-Jacobi used %i iterations\n",
+           GaussSeidelPoisson1Drb(b, tol, 10000000));
   else if (flag == 11)
+           DiagonalizationPoisson1D(b,lambda,Q);
+  else if (flag == 12)
            DiagonalizationPoisson1Dfst(b,lambda);
+  else if (flag == 13)
+    printf("CG used %i iterations\n", cgMatrixFree(Poisson1D, b, tol));
 
   printf("elapsed: %f\n", WallTime()-time);
 

@@ -15,13 +15,15 @@ void MxVdispl(Vector y, const Matrix A, const Vector x,
 int GaussJacobi(Matrix A, Vector u, double tol, int maxit)
 {
   int it=0, i, j;
+  double rl;
   Vector b = createVector(u->len);
   Vector e = createVector(u->len);
   Vector r = createVector(u->len);
   copyVector(b, u);
   fillVector(u, 0.0);
   double max = tol+1;
-  while (max > tol && ++it < maxit) {
+  rl = maxNorm(b);
+  while (max > tol*rl && ++it < maxit) {
     copyVector(e, u);
     copyVector(u, b);
 #pragma omp parallel for schedule(static) private(j)
@@ -45,6 +47,7 @@ int GaussJacobi(Matrix A, Vector u, double tol, int maxit)
 int GaussJacobiBlas(Matrix A, Vector u, double tol, int maxit)
 {
   int it=0, i, j;
+  double rl;
   Vector b = createVector(u->len);
   Vector e = createVector(u->len);
   Vector r = createVector(u->len);
@@ -61,7 +64,8 @@ int GaussJacobiBlas(Matrix A, Vector u, double tol, int maxit)
   copyVector(b, u);
   fillVector(u, 0.0);
   double max = tol+1;
-  while (max > tol && ++it < maxit) {
+  rl = maxNorm(b);
+  while (max > tol*rl && ++it < maxit) {
     copyVector(e, u);
     copyVector(u, b);
 #pragma omp parallel private(i)
@@ -92,12 +96,14 @@ int GaussSeidel(Matrix A, Vector u, double tol, int maxit)
 {
   int it=0, i, j;
   double max = tol+1;
+  double rl;
   Vector b = createVector(u->len);
   Vector r = createVector(u->len);
   Vector v = createVector(u->len);
   copyVector(b, u);
   fillVector(u, 0.0);
-  while (max > tol && ++it < maxit) {
+  rl = maxNorm(b);
+  while (max > tol*rl && ++it < maxit) {
     copyVector(v, u);
     copyVector(u, b);
     for (i=0;i<A->rows;++i) {
@@ -121,6 +127,7 @@ int GaussSeidel(Matrix A, Vector u, double tol, int maxit)
 int GaussSeidelBlas(Matrix A, Vector u, double tol, int maxit)
 {
   int it=0, i, j;
+  double rl;
   Vector b = createVector(u->len);
   Vector e = createVector(u->len);
   Vector v = createVector(u->len);
@@ -132,7 +139,8 @@ int GaussSeidelBlas(Matrix A, Vector u, double tol, int maxit)
   copyVector(b, u);
   fillVector(u, 0.0);
   double max = tol+1;
-  while (max > tol && ++it < maxit) {
+  rl = maxNorm(b);
+  while (max > tol*rl && ++it < maxit) {
     copyVector(e, u);
     copyVector(u, b);
     MxV(u, U, e, -1.0, 1.0, 'N');
@@ -145,6 +153,212 @@ int GaussSeidelBlas(Matrix A, Vector u, double tol, int maxit)
   freeVector(e);
   freeVector(v);
   freeMatrix(U);
+
+  return it;
+}
+
+int cg(Matrix A, Vector b, double tolerance)
+{
+  int i=0, j;
+  double rl;
+  Vector r = createVector(b->len);
+  Vector p = createVector(b->len);
+  Vector buffer = createVector(b->len);
+  double dotp = 1000;
+  double rdr = dotp;
+  copyVector(r,b);
+  fillVector(b, 0.0);
+  int* sizes, *displ;
+  splitVector(A->rows, getMaxThreads(), &sizes, &displ);
+  Matrix* Ablock = malloc(getMaxThreads()*sizeof(Matrix));
+#pragma omp parallel
+  {
+    Ablock[getCurrentThread()] = subMatrix(A, displ[getCurrentThread()],
+                                           sizes[getCurrentThread()], 0, A->cols);
+  }
+  rl = sqrt(dotproduct(r,r));
+  while (i < b->len && rdr > tolerance*rl) {
+    ++i;
+    if (i == 1) {
+      copyVector(p,r);
+      dotp = dotproduct(r,r);
+    } else {
+      double dotp2 = dotproduct(r,r);
+      double beta = dotp2/dotp;
+      dotp = dotp2;
+      scaleVector(p,beta);
+      axpy(p,r,1.0);
+    }
+#pragma omp parallel
+    {
+      MxVdispl(buffer, Ablock[getCurrentThread()], p, 1.0, 0.0,
+               displ[getCurrentThread()]);
+    }
+    double alpha = dotp/dotproduct(p,buffer);
+    axpy(b,p,alpha);
+    axpy(r,buffer,-alpha);
+    rdr = sqrt(dotproduct(r,r));
+  }
+  freeVector(r);
+  freeVector(p);
+  freeVector(buffer);
+  for (j=0;j<getMaxThreads();++j)
+    freeMatrix(Ablock[j]);
+  free(Ablock);
+
+  return i;
+}
+
+int cgMatrixFree(MatVecFunc A, Vector b, double tolerance)
+{
+  int it=0;
+  double rl;
+  Vector r = cloneVector(b);
+  Vector p = cloneVector(b);
+  Vector buffer = cloneVector(b);
+  double dotp = 1000;
+  double rdr = dotp;
+  copyVector(r,b);
+  fillVector(b, 0.0);
+  rl = sqrt(dotproduct(r,r));
+  while (it < b->glob_len && rdr > tolerance*rl) {
+    ++it;
+    if (it == 1) {
+      copyVector(p,r);
+      dotp = dotproduct(r,r);
+    } else {
+      double dotp2 = dotproduct(r,r);
+      double beta = dotp2/dotp;
+      dotp = dotp2;
+      scaleVector(p,beta);
+      axpy(p,r,1.0);
+    }
+    A(buffer, p);
+    double alpha = dotp/dotproduct(p,buffer);
+    axpy(b,p,alpha);
+    axpy(r,buffer,-alpha);
+    rdr = sqrt(dotproduct(r,r));
+  }
+  freeVector(r);
+  freeVector(p);
+  freeVector(buffer);
+
+  return it;
+}
+
+int cgMatrixFreeMat(MatMatFunc A, Matrix b, double tolerance)
+{
+  int it=0;
+  double rl;
+  Matrix r = cloneMatrix(b);
+  Matrix p = cloneMatrix(b);
+  Matrix buffer = cloneMatrix(b);
+  double dotp = 1000;
+  double rdr = dotp;
+  copyVector(r->as_vec, b->as_vec);
+  fillVector(b->as_vec, 0.0);
+  rl = sqrt(dotproduct(r->as_vec, r->as_vec));
+  while (it < b->as_vec->glob_len && rdr > tolerance*rl) {
+    ++it;
+    if (it == 1) {
+      copyVector(p->as_vec, r->as_vec);
+      dotp = dotproduct(r->as_vec, r->as_vec);
+    } else {
+      double dotp2 = dotproduct(r->as_vec, r->as_vec);
+      double beta = dotp2/dotp;
+      dotp = dotp2;
+      scaleVector(p->as_vec, beta);
+      axpy(p->as_vec, r->as_vec, 1.0);
+    }
+    A(buffer, p);
+    double alpha = dotp/dotproduct(p->as_vec, buffer->as_vec);
+    axpy(b->as_vec, p->as_vec, alpha);
+    axpy(r->as_vec, buffer->as_vec, -alpha);
+    rdr = sqrt(dotproduct(r->as_vec, r->as_vec));
+  }
+  freeMatrix(r);
+  freeMatrix(p);
+  freeMatrix(buffer);
+
+  return it;
+}
+
+int pcgMatrixFree(MatVecFunc A, MatVecFunc pre, Vector b, double tolerance)
+{
+  int it=0;
+  double rl;
+  Vector r = cloneVector(b);
+  Vector p = cloneVector(b);
+  Vector z = cloneVector(b);
+  Vector buffer = cloneVector(b);
+  double dotp = 1000;
+  double rdr = dotp;
+  copyVector(r,b);
+  fillVector(b, 0.0);
+  rl = sqrt(dotproduct(r,r));
+  while (it < b->glob_len && rdr > tolerance*rl) {
+    pre(z,r);
+    ++it;
+    if (it == 1) {
+      copyVector(p,z);
+      dotp = dotproduct(r,z);
+    } else {
+      double dotp2 = dotproduct(r,z);
+      double beta = dotp2/dotp;
+      dotp = dotp2;
+      scaleVector(p,beta);
+      axpy(p,z,1.0);
+    }
+    A(buffer, p);
+    double alpha = dotp/dotproduct(p,buffer);
+    axpy(b,p,alpha);
+    axpy(r,buffer,-alpha);
+    rdr = sqrt(dotproduct(r,r));
+  }
+  freeVector(r);
+  freeVector(p);
+  freeVector(z);
+  freeVector(buffer);
+
+  return it;
+}
+
+int pcgMatrixFreeMat(MatMatFunc A, MatMatFunc pre, Matrix b, double tolerance)
+{
+  int it=0;
+  double rl;
+  Matrix r = cloneMatrix(b);
+  Matrix p = cloneMatrix(b);
+  Matrix z = cloneMatrix(b);
+  Matrix buffer = cloneMatrix(b);
+  double dotp = 1000;
+  double rdr = dotp;
+  copyVector(r->as_vec, b->as_vec);
+  fillVector(b->as_vec, 0.0);
+  rl = sqrt(dotproduct(r->as_vec, r->as_vec));
+  while (it < b->as_vec->glob_len && rdr > tolerance*rl) {
+    pre(z,r);
+    ++it;
+    if (it == 1) {
+      copyVector(p->as_vec, z->as_vec);
+      dotp = dotproduct(r->as_vec, z->as_vec);
+    } else {
+      double dotp2 = dotproduct(r->as_vec, z->as_vec);
+      double beta = dotp2/dotp;
+      dotp = dotp2;
+      scaleVector(p->as_vec, beta);
+      axpy(p->as_vec, z->as_vec, 1.0);
+    }
+    A(buffer, p);
+    double alpha = dotp/dotproduct(p->as_vec, buffer->as_vec);
+    axpy(b->as_vec, p->as_vec, alpha);
+    axpy(r->as_vec, buffer->as_vec, -alpha);
+    rdr = sqrt(dotproduct(r->as_vec, r->as_vec));
+  }
+  freeMatrix(r);
+  freeMatrix(p);
+  freeMatrix(z);
+  freeMatrix(buffer);
 
   return it;
 }

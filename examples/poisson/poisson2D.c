@@ -8,12 +8,12 @@
 
 double source(double x, double y)
 {
-  return 8*M_PI*M_PI*sin(2*M_PI*x)*sin(2*M_PI*y);
+  return -30.0*pow(y,4)*x*(pow(x,5.0)-1)-30.0*pow(x,4)*y*(pow(y,5)-1);
 }
 
 double exact(double x, double y)
 {
-  return sin(2*M_PI*x)*sin(2*M_PI*y);
+  return x*(pow(x,5)-1.0)*y*(pow(y,5)-1.0);
 }
 
 int GaussJacobiPoisson2DVec(Vector u, double tol, int maxit)
@@ -124,6 +124,27 @@ void DiagonalizationPoisson2Dfst(Matrix b, const Vector lambda)
   freeVector(buf);
 }
 
+void Poisson2D(Vector u, const Vector v)
+{
+  int M=sqrt(v->len);
+  int i, j, k;
+#pragma omp parallel for schedule(static) private(j, k)
+    for (i=0;i<M;++i) {
+      k = i*M;
+      for (j=0;j<M;++j, ++k) {
+        u->data[k] = 4.0*v->data[k];
+        if (j > 0)
+          u->data[k] -= v->data[k-1];
+        if (j < M-1)
+          u->data[k] -= v->data[k+1];
+        if (i > 0)
+          u->data[k] -= v->data[k-M];
+        if (i < M-1)
+          u->data[k] -= v->data[k+M];
+      }
+    }
+}
+
 int main(int argc, char** argv)
 {
   int i, j, N, flag, local;
@@ -135,17 +156,19 @@ int main(int argc, char** argv)
   if (argc < 3) {
     printf("need two parameters, N and flag\n");
     printf(" - N is the problem size (in each direction\n");
-    printf(" - flag = 1 -> Dense LU\n");
-    printf(" - flag = 2 -> Dense Cholesky\n");
-    printf(" - flag = 3 -> Full Gauss-Jacobi iterations\n");
-    printf(" - flag = 4 -> Full Gauss-Jacobi iterations using BLAS\n");
-    printf(" - flag = 5 -> Full Gauss-Seidel iterations\n");
-    printf(" - flag = 6 -> Full Gauss-Seidel iterations using BLAS\n");
-    printf(" - flag = 7 -> Matrix-less Gauss-Jacobi iterations\n");
-    printf(" - flag = 8 -> Matrix-less Gauss-Jacobi iterations, local data structure\n");
-    printf(" - flag = 9 -> Matrix-less Red-Black Gauss-Jacobi iterations, local data structure\n");
-    printf(" - flag = 10 -> Diagonalization\n");
-    printf(" - flag = 11 -> Diagonalization, fst based\n");
+    printf(" - flag = 1  -> Dense LU\n");
+    printf(" - flag = 2  -> Dense Cholesky\n");
+    printf(" - flag = 3  -> Full Gauss-Jacobi iterations\n");
+    printf(" - flag = 4  -> Full Gauss-Jacobi iterations using BLAS\n");
+    printf(" - flag = 5  -> Full Gauss-Seidel iterations\n");
+    printf(" - flag = 6  -> Full Gauss-Seidel iterations using BLAS\n");
+    printf(" - flag = 7  -> Full CG iterations using BLAS\n");
+    printf(" - flag = 8  -> Matrix-less Gauss-Jacobi iterations\n");
+    printf(" - flag = 9  -> Matrix-less Gauss-Jacobi iterations, local data structure\n");
+    printf(" - flag = 10 -> Matrix-less Red-Black Gauss-Jacobi iterations, local data structure\n");
+    printf(" - flag = 11 -> Diagonalization\n");
+    printf(" - flag = 12 -> Diagonalization, fst based\n");
+    printf(" - flag = 13  -> Matrix-free CG iterations\n");
     return 1;
   }
   N=atoi(argv[1]);
@@ -155,12 +178,12 @@ int main(int argc, char** argv)
     return 2;
   }
 
-  if (flag < 0 || flag > 11) {
+  if (flag < 0 || flag > 13) {
     printf("invalid flag given\n");
     return 3;
   }
 
-  local = (flag==8 || flag == 9);
+  local = (flag==9 || flag == 10);
 
   grid = equidistantMesh(0.0, 1.0, N);
   if (local) {
@@ -174,7 +197,7 @@ int main(int argc, char** argv)
   h = grid->data[1]-grid->data[0];
   scaleVector(b->as_vec, pow(h, 2));
 
-  if (flag < 7) {
+  if (flag < 8) {
     A = createMatrix((N-1)*(N-1),(N-1)*(N-1));
     diag(A, -1, -1);
     diag(A, 0, 4.0);
@@ -187,9 +210,9 @@ int main(int argc, char** argv)
     }
   }
 
-  if (flag >= 10)
+  if (flag >= 11 && flag < 13)
     lambda = generateEigenValuesP1D(N-1);
-  if (flag == 10)
+  if (flag == 11)
     Q = generateEigenMatrixP1D(N-1);
 
   time = WallTime();
@@ -202,26 +225,30 @@ int main(int argc, char** argv)
     llsolve(A,b->as_vec,0);
   else if (flag == 3)
     printf("Gauss-Jacobi used %i iterations\n",
-           GaussJacobi(A, b->as_vec, 1e-6, 1000000));
+           GaussJacobi(A, b->as_vec, 1e-8, 1000000));
   else if (flag == 4)
     printf("Gauss-Jacobi used %i iterations\n",
-           GaussJacobiBlas(A, b->as_vec, 1e-6, 1000000));
+           GaussJacobiBlas(A, b->as_vec, 1e-8, 1000000));
   else if (flag == 5)
     printf("Gauss-Seidel used %i iterations\n",
-           GaussSeidel(A, b->as_vec, 1e-6, 1000000));
+           GaussSeidel(A, b->as_vec, 1e-8, 1000000));
   else if (flag == 6)
     printf("Gauss-Seidel used %i iterations\n",
-           GaussSeidelBlas(A, b->as_vec, 1e-6, 1000000));
+           GaussSeidelBlas(A, b->as_vec, 1e-8, 1000000));
   else if (flag == 7)
-    printf("Gauss-Jacobi used %i iterations\n",
-           GaussJacobiPoisson2DVec(b->as_vec, 1e-6, 1000000));
+    printf("CG used %i iterations\n", cg(A, b->as_vec, 1e-8));
   else if (flag == 8)
     printf("Gauss-Jacobi used %i iterations\n",
+           GaussJacobiPoisson2DVec(b->as_vec, 1e-8, 1000000));
+  else if (flag == 9)
+    printf("Gauss-Jacobi used %i iterations\n",
            GaussJacobiPoisson2DMat(b, 1e-8, 1000000));
-  else if (flag == 10)
-           DiagonalizationPoisson2D(b, lambda, Q);
   else if (flag == 11)
+           DiagonalizationPoisson2D(b, lambda, Q);
+  else if (flag == 12)
            DiagonalizationPoisson2Dfst(b, lambda);
+  else if (flag == 13)
+    printf("CG used %i iterations\n", cgMatrixFree(Poisson2D, b->as_vec, 1e-8));
 
   printf("elapsed: %f\n", WallTime()-time);
 
