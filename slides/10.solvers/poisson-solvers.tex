@@ -280,7 +280,7 @@
          \item It is sequential in nature (you need to eliminate for row 2 before you
            can start to eliminate for row 3).
          \item Pivoting requires syncronization for every row.
-         \item Substituttion phase is completely sequential (less important).
+         \item Substitution phase is completely sequential (less important).
          \item There have been some smart people working on this, looking at the
            graph of the matrix to identify independent blocks.
        \end{itemize}
@@ -294,8 +294,8 @@
   \begin{itemize}
     \item Solution methods can be categorized in two classes: 
       \begin{itemize}
-        \item Direct methods - these are methods which yields the solution is
-          a exactly countable number of operations - LU factorization is a prime example of this.
+        \item Direct methods - these are methods which yields the solution in
+          a countable number of operations - LU factorization is a prime example of this.
         \item Iterative methods, which find the solution through applying some
           iterative procedure. Not as easy to exactly count the required number
           of operations.
@@ -305,7 +305,7 @@
 \end{frame}
 \begin{frame}\frametitle{Diagonalization}
   \begin{itemize}
-    \item This is not a hammer. We need exploit properties of the linear system at hand.
+    \item This is not a hammer. We need to exploit properties of the linear system at hand.
     \item We recall the five-point formula;
       \begin{figure}[H]
         \begin{center}
@@ -334,7 +334,7 @@
       the diagonal.
     \item Since $\ub{Q}$ is an orthogonal matrix, we equivalently have
       \[
-        \ub{Q} = \ub{Q}\ub{\Lambda}\ub{Q}^T.
+        \ub{C} = \ub{Q}\ub{\Lambda}\ub{Q}^T.
       \]
   \end{itemize}
 \end{frame}
@@ -655,7 +655,7 @@
           v_{n-1}
         \end{bmatrix}
         \in \mathbb{R}^{n-1}. \\
-        \intertext{Construct the extended vector as an ``odd'' extension}
+        \intertext{\small Construct the extended vector as an ``odd'' extension}
         w &=
         \begin{bmatrix}
           0 \\ 
@@ -669,6 +669,7 @@
         \end{bmatrix}
         \in \mathbb{R}^{2n}.
       \end{align*}
+      \normalsize
   \end{itemize}
 \end{frame}
 \begin{frame}\frametitle{The DFT and DST relationship contd.}
@@ -708,5 +709,494 @@
       \]
       in $\mathcal{O}\left(N^2\log N\right)$ operations.
   \end{enumerate}
+\end{frame}
+\begin{frame}\frametitle{Iterative methods}
+  \begin{itemize}
+    \item This far we have considered direct methods which work on the matrix itself.
+    \item Now: iterative methods.
+    \item Iterative methods seek to solve the system by iterations, gradually improving an estimate of
+      the solution.
+    \item In general they do not yield the exact solution, but rather an approximation.
+    \item A very important concept in iterative methods: The residual:
+      \[
+        \ub{r} = \ub{b}-\ub{A}\ub{x}^k
+      \]
+      for some iteration level $k$.
+    \item Obviously $\ub{r}$ is 0 for the exact solution $\ub{x}$.
+    \item Used to measure how far we are from the actual solution to the system.
+  \end{itemize}
+\end{frame}
+\begin{frame}
+\frametitle{Fixed point iterations}
+\begin{itemize}
+  \item Tempting to try the iterative schemes we learned in elementary calculus.
+  \item Fixed point iterations require us to write the problem on the from $\ub{x} = g(\ub{x})$ for some function $g$;
+    \[
+      \begin{split}
+        \ub{f}(\ub{x}) &= \ub{0} = \ub{g}(\ub{x})-\ub{x} \\
+        \ub{A}\ub{x}-\ub{b} &= \ub{0} = \ub{g}(\ub{x})-\ub{x} \Rightarrow \\
+        (\ub{A}+\ub{I})\ub{x}-\ub{b} = \ub{x} \Rightarrow
+        \ub{x}^{k+1} &= (\ub{A}+\ub{I})\ub{x}^k-\ub{b}
+      \end{split}
+    \]
+    This will work in extremely few since the requirement that $\ub{g}$ is a contraction
+    is requiring that
+    \[
+      \max_{i}|\lambda_i(\ub{I}+\ub{A})| < 1
+    \]
+    which is seldom the case.
+  \end{itemize}
+\end{frame}
+\begin{frame}
+\frametitle{Newton iterations}
+  \begin{itemize}
+    \item Newton iterations works on a system on the form $F(\ub{x}) = \ub{0}$:
+      \[
+        \ub{x}^{k+1} = \ub{x}^k-\ub{A}^{-1}\left(\ub{A}\ub{x}^k-\ub{b}\right) = \ub{A}^{-1}\ub{b}.
+      \]
+      Doh! That is the problem we want to solve in the first place :(
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods.}
+  \begin{itemize}
+    \item Again we consider a linear system
+      \[
+        \ub{A}\ub{x} = \ub{b}.
+      \]
+    \item We split the matrix $\ub{A}$ in three parts; \tiny
+      \[
+        \begin{split}
+          \ub{A} &= \ub{L} + \ub{D} + \ub{U} \\
+                 &= \begin{bmatrix}
+                      0 & \\
+                      a_{21} & 0\\
+                      a_{31} & a_{32} & 0\\
+                      \ddots & \ddots & \ddots & \ddots
+                    \end{bmatrix} +
+                    \begin{bmatrix}
+                      a_{11} \\
+                             & a_{22} \\
+                             &        & a_{33} \\
+                             &        &       & \ddots
+                    \end{bmatrix}+
+                    \begin{bmatrix}
+                      0 & a_{12} & \dots \\
+                      0 & 0      & a_{23} & \dots \\
+                      0 & 0      & 0      & a_{34}  \\
+                      0 & 0      & 0      & 0 & \ddots
+                    \end{bmatrix}
+        \end{split}
+      \] \normalsize
+    \item Do \emph{NOT} confuse these $\ub{L}$ and $\ub{U}$ matrices with the $\ub{L}\ub{U}$ factorization (Gaussian elimination).
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item Again we consider a linear system
+      \[
+        \ub{A}\ub{x} = \left(\ub{L}+\ub{D}+\ub{U}\right)\ub{x} = \ub{b}.
+      \]
+    \item This is the departure point for two well known iterative schemes. First: Gauss-Jacobi.
+    \item We reorganize the system as
+      \[
+        \ub{D}\ub{x} = \ub{b}-\left(\ub{L}+\ub{U}\right)\ub{x}.
+      \]
+    \item We then make this into an iterative scheme by defining iteration level $k$:
+      \[
+        \ub{D}\ub{x}^{k+1} = \ub{b}-\left(\ub{L}+\ub{U}\right)\ub{x}^{k}.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item Likewise, we have the Gauss-Seidel scheme.
+    \item We reorganize the system as
+      \[
+        \left(\ub{L}+\ub{D}\right)\ub{x} = \ub{b}-\ub{U}\ub{x}.
+      \]
+    \item We then make this into an iterative scheme by defining iteration level $k$:
+      \[
+        \left(\ub{L}+\ub{D}\right)\ub{x}^{k+1} = \ub{b}-\ub{U}\ub{x}^{k}.
+      \]
+    \item Can you tell the principal difference between these two methods?
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item It is easy to spot on component form.
+    \item Gauss-Jacobi:
+      \[
+        a_{ii}x_i^{k+1} = b_i - \sum_{j=1, j\neq i}^{N} a_{ij}x_j^k, \quad i=1,\dots,N.
+      \]
+    \item Gauss-Seidel:
+      \[
+        a_{ii}x_i^{k+1} = b_i - \sum_{j=1}^{i-1} a_{ij}x_j^{k+1} - \sum_{j=i+1}^Na_{ij}x_j^k, \quad i=1,\dots,N.
+      \]
+    \item Gauss-Seidel uses new iteration values as soon as they are available.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item These methods are very simple, and quite limited in their applicability.
+    \item Gauss-Jacobi require that the spectral radius of $\ub{R} = \ub{D}^{-1}\left(\ub{L}+\ub{U}\right)$ is less than one, i.e.
+      \[
+        \rho(\ub{D}^{-1}\ub{R}) < 1.
+      \]
+    \item One way to guarantee that this is the case is if $\ub{A}$ is strictly diagonally dominant, i.e.
+      \[
+        |a_{ii}| > \sum_{j=1,j\neq i}^N |a_{ij}| \quad \forall i.
+      \]
+    \item This is \emph{NOT} the case for the Poisson operator. But it will still converge, although very slow.
+    \item Gauss-Seidel is less strict, only requiring $\ub{A}$ to be SPD.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item A naive Gauss-Jacobi implementation might look like:
+      \lstinputlisting[basicstyle=\tiny]{gj-naive.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item A naive Gauss-Jacobi with a residual tolerance might look like:
+      \lstinputlisting[basicstyle=\tiny]{gj-naive-rtol.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item A naive Gauss-Seidel implementation might look like:
+      \lstinputlisting[basicstyle=\tiny]{gs-naive.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Splitting based iterative methods contd.}
+  \begin{itemize}
+    \item A naive Gauss-Seidel with a residual tolerance might look like:
+      \lstinputlisting[basicstyle=\tiny]{gs-naive-rtol.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Parallelizing Gauss-Jacobi iterations - threads}
+  \begin{itemize}
+    \item The Gauss-Jacobi iterations are easily parallelized.
+    \item We simply fork the threads on the rows of the matrix.
+      \lstinputlisting[basicstyle=\tiny]{gj-threads.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Matrix-free iterations}
+  \begin{itemize}
+    \item The direct methods are characterized by the fact that we have to explicitly store
+          the matrix (in a dense or sparse matrix).
+    \item Iterative methods, however, do not care. As long as we obtain the value of the matrix-vector
+          product, they do not care how we do it.
+    \item This allows us to heavily optimize the Gauss-Jacobi iterations.
+    \item We can avoid forming the matrix completely.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Matrix-free Gauss-Jacobi iterations}
+   \lstinputlisting[basicstyle=\tiny]{gj-threads-mfree.c}
+\end{frame}
+\begin{frame}\frametitle{Parallelizing Gauss-Seidel iterations - threads}
+  \begin{itemize}
+    \item The Gauss-Seidel iterations are more difficult to parallelize.
+    \item This is due to the immediate data reuse, which implies a serial procedure.
+    \item There is simply no way to implement the same algorithm in a parallel fashion.
+    \item However, there is nothing that mandates that we sweep the unknowns in a particular order.
+    \item If we change the order we sweep the unknowns, we can obtain a parallel algorithm.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Parallelizing Gauss-Seidel iterations - threads}
+  \begin{itemize}
+    \item We color the nodes in a two-color alternating fashion.
+       \begin{figure}[H]
+        \begin{center}
+          \includegraphics[width=9cm]{redblack}
+        \end{center}
+      \end{figure}
+    \item Now, \textcolor{red}{red} nodes only couple to \textcolor{black}{black} nodes.
+    \item We can thus sweep all \textcolor{red}{red} nodes in parallel, and then sweep all black nodes in parallel.
+    \item Again: this \emph{changes} the algorithm; we cannot expect the same iteration history as in the serial implementation.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Parallelizing Gauss-Seidel iterations - threads}
+   \lstinputlisting[basicstyle=\tiny]{gs-threads-rb.c}
+\end{frame}
+\begin{frame}\frametitle{Iterative schemes - redundant storage}
+  \begin{itemize}
+    \item Another freedom offered by the iterative schemes is that we can store data as we see fit.
+    \item For the direct methods, we eliminated the nodes on the boundary, since they are not
+      part of the equation systems.
+    \item We have no such restrictions for the iterative schemes, we are free to explicitly store the
+      zeros on the boundaries.
+    \item This is actually very beneficial, in particular when we consider MPI parallelization as we will see shortly.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Gauss-Jacobi iterations with redundant storage}
+   \lstinputlisting[basicstyle=\tiny]{gj-threads-mfree-redundant.c}
+\end{frame}
+\begin{frame}\frametitle{Gauss-Jacobi iterations - MPI parallelization}
+  \begin{itemize}
+    \item There are basically two ways to we can partition a linear system of equations
+      \begin{enumerate}
+        \item We can partition the data structure (the matrix and vector).
+        \item We can partition the problem which generated the linear system in the first place - this is referred to as domain decomposition.
+      \end{enumerate}
+    \item The second approach is connected to the first approach.
+          In particular, it can be seen as a particular way of splitting the data structure (more on this later).
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Matrix partitioning}
+\begin{itemize}
+  \item Row based division:
+     \includegraphics[width=7cm]{rows}
+  \item Can be written on block form as
+        \[
+           \begin{bmatrix}
+                \mathbf{A}_0 \\
+                \mathbf{A}_1 \\
+                \mathbf{A}_2
+           \end{bmatrix}\begin{bmatrix}
+                          \mathbf{x}_0 \\
+                          \mathbf{x}_1 \\
+                          \mathbf{x}_2
+                        \end{bmatrix} = \begin{bmatrix}
+                                          \mathbf{b}_0 \\
+                                          \mathbf{b}_1 \\
+                                          \mathbf{b}_2
+                                        \end{bmatrix}
+        \]
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Matrix partitioning}
+\begin{itemize}
+  \item Thus we see that process $p$ can evaluate in two steps;
+  \begin{enumerate}
+    \item Collect entire vector $\mathbf{r}$.
+    \item Perform local MxV $\mathbf{A}_p \mathbf{r}$.
+  \end{enumerate}
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Matrix partitioning}
+\begin{itemize}
+  \item Column based division:
+     \includegraphics[width=7cm]{cols}
+  \item Can be written on block form as
+        \[
+           \begin{bmatrix}
+                \mathbf{A}_{0,0} & \mathbf{A}_{0,1} & \mathbf{A}_{0,2} \\
+                \mathbf{A}_{1,0} & \mathbf{A}_{1,1} & \mathbf{A}_{1,2} \\
+                \mathbf{A}_{2,0} & \mathbf{A}_{2,1} & \mathbf{A}_{2,2}
+           \end{bmatrix}\begin{bmatrix}
+                          \mathbf{x}_0 \\
+                          \mathbf{x}_1 \\
+                          \mathbf{x}_2
+                        \end{bmatrix} = \begin{bmatrix}
+                                          \mathbf{b}_0 \\
+                                          \mathbf{b}_1 \\
+                                          \mathbf{b}_2
+                                        \end{bmatrix}
+        \]
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Matrix partitioning}
+\begin{itemize}
+  \item With $N$ process, we see that process $p$ can evaluate in N+1 steps;
+  \begin{enumerate}
+    \item Perform local MxV to obtain
+        \[
+          \mathbf{w} = \begin{bmatrix}
+                          \mathbf{A}_{0,p}\mathbf{x}_p \\
+                          \mathbf{A}_{1,p}\mathbf{x}_p \\
+                          \vdots \\
+                          \mathbf{A}_{N-1,p}\mathbf{x}_p
+                       \end{bmatrix}
+        \]
+     \item Participate in $N$ reductions, e.g. to form $\mathbf{v}_0$ as
+      \[
+          \mathbf{v}_0 = \sum \mathbf{A}_{0,j}\mathbf{r}_j.
+      \]
+  \end{enumerate}
+  \item Common to both these approaches is that we need to exchange the entire vector between processes.
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Domain decomposition}
+\begin{itemize}
+  \item Very general, can be used for all kinds of grids.
+    \includegraphics[width=4.5cm]{grid2D_1domain}
+    \includegraphics[width=4.5cm]{grid2D_2domains}
+\end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Gauss-Jacobi iterations - MPI parallelization}
+  \begin{itemize}
+    \item We partition the mesh - in 1D this is the same as splitting a vector.
+      \begin{center}
+        \includegraphics[width=8cm]{meshsplit}
+      \end{center}
+    \item On each MPI process, we use a ``redundant'' storage format - with extra elements at the start and end of the vector.
+          We do this, even on processes which do not own the physical boundary.
+      \begin{center}
+        \includegraphics[width=8cm]{redundant}
+      \end{center}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Gauss-Jacobi iterations - MPI parallelization}
+  \begin{itemize}
+    \item We create a MPI communicator with the topology attached using
+      \begin{itemize}
+        \item \emph{MPI\_Dims\_create}
+        \item \emph{MPI\_Cart\_create}
+      \end{itemize}
+    \item Each process can find its place in the topology through \emph{MPI\_Cart\_coords}.
+    \item We exchange data through combined use of \emph{MPI\_Shift} and \emph{MPI\_Sendrecv}.
+    \item The off-process datas are stored in the redundant data locations.
+      \begin{center}
+        \includegraphics[width=8cm]{dataexchange}
+      \end{center}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Matrix-free Gauss-Jacobi iterations with MPI}
+   \lstinputlisting[basicstyle=\tiny]{gj-mpi.c}
+\end{frame}
+\frame[label=mpiio14]{
+  \frametitle{2D implementation - Distributed arrays}
+  \begin{itemize}
+    \item We store our solution in vector as a matrix for convenience. We want to partition this array.
+      \begin{center}
+        \includegraphics[width=4cm]{strip}
+        \includegraphics[width=4cm]{block}
+      \end{center}
+    \item The \texttt{MPI} machinery allows us to handle both of these with essentially 
+      the same code.
+  \end{itemize}
+}
+\frame[label=mpiio15]{
+  \frametitle{2D implementation - distributed arrays contd.}
+  \begin{itemize}
+    \item \texttt{MPI} names such arrays \emph{darrays} - distributed arrays.
+    \item The available functions are heavily inspired by the \texttt{High Performance Fortran}
+      standard.
+    \item In the following we use the term \emph{topology}, which in layman's terms means
+      ``how stuff is connected''.
+    \item An array partitioning consists of a topology and a mapping of processes onto this
+      topology.
+  \end{itemize}
+}
+\frame[label=mpiio16]{
+  \frametitle{2D implementation - Distributed arrays contd.}
+  \begin{itemize}
+    \item The following figure contains the pieces of information we need to describe the
+      topology and the mapping.
+      \begin{center}
+        \includegraphics[width=8cm]{splitdomain}
+      \end{center}
+  \end{itemize}
+}
+\frame[label=mpiio17]{
+  \frametitle{2D implementation - Distributed arrays}
+  \begin{itemize}
+    \item A global topology - here a Cartesian topology expressed as the number 
+      of processes along each dimension (here 2 and 3, respectively).
+    \item Location of a particular domain in the topology, again
+      this can be expressed as an integer along each dimension.
+    \item A mapping of the available processes onto the topology.
+  \end{itemize}
+}
+\frame[label=mpiio18]{
+  \frametitle{2D implementation - Distributed arrays}
+  \begin{itemize}
+    \item The first function we use is \emph{MPI\_Dims\_Create}. This generates
+      a Cartesian partioning.
+    \item Block partioning: \lstinputlisting[language=C]{dimsblock.c}
+    \item Strip partioning: \lstinputlisting[language=C]{dimsstrip.c}
+    \item Upon return the \emph{dims} array holds the results.
+  \end{itemize}
+}
+\frame[label=mpiio19]{
+  \frametitle{2D implementation - Distributed arrays}
+  \begin{itemize}
+    \item In order to be able to generate the mapping of processes onto
+      the topology, we need to define a communicator which has the
+      topology attached.
+      \lstinputlisting[language=C]{comm.c}
+    \item Upon return the \emph{comm} variable holds the new communicator.
+  \end{itemize}
+}
+\frame[label=mpiio20]{
+  \frametitle{2D implementation - Distributed arrays}
+  \begin{itemize}
+    \item The individual process can now query where they are placed in the
+      topology using the function
+      \lstinputlisting[language=C]{coord.c}
+    \item Upon return from the function, the \emph{coords} array holds the coordinates.
+      For instance, it would hold 1 and 2 when called on process 5.
+  \end{itemize}
+}
+\begin{frame}\frametitle{Another class of iterative methods: Krylov methods}
+  \begin{itemize}
+    \item Another very important classes of iterative methods are the Krylov subspace methods.
+    \item Observation:
+      \[
+        \ub{x} = \sum_{j=0}^{N-1} v_j\ub{A}^j \ub{b}
+      \]
+      for any vector $\ub{b}$, that is $\text{span}\left\{\ub{A}^j\ub{b}\right\}_{j=0}^{N-1}$ form a basis for
+      the column space of $\ub{A}$. We call this space the Krylov subspace of $\ub{A}$. Here $v_j$ is a set of coefficients.
+    \item Idea of Krylov subspace methods; make an initial guess, then
+      improve this by successively eliminating contributions to the
+      residual along each Krylov vectors.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Another class of iterative methods: Krylov methods}
+  \begin{itemize}
+    \item Many different Krylov methods, suitable for different types of
+        linear systems (in the sense of symmetries, definiteness etc).
+    \item The two maybe most important ones;
+      \begin{itemize}
+        \item GMRES - the generalized minimum residual method.
+              This is the ``hammer'' in the sense that it handles non-symmetric
+              and non-definite problems.
+        \item CG - the conjugate gradient method.
+              This works for symmetric, positive definite systems.
+      \end{itemize}
+    \item In the following: we only consider CG.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{The conjugate gradient algorithm}
+\begin{center}
+  \boxed{
+    \begin{minipage}{8cm}
+      \begin{align*}
+        \text{Set } \underline{u}^0 &= \underline{0}, \quad \underline{r}^0 = \underline{f}  \nonumber \\
+        \text{For } m&=1,2,\ldots \nonumber \\
+        \beta_m &= \frac{(\underline{r}^{m-1})^T \underline{r}^{m-1}}{(\underline{r}^{m-2})^T \underline{r}^{m-2}} \qquad \quad (\beta_1 \equiv 0) \nonumber \\
+        \underline{p}^m &= \underline{r}^{m-1} + \beta_m \underline{p}^{m-1} \qquad (\underline{p}^1 \equiv \underline{r}^0) \\
+        \alpha_m &= \frac{(\underline{r}^{m-1})^T \underline{r}^{m-1}}{(\underline{p}^{m})^T \underline{A} \underline{p}^m} \nonumber \\
+        \underline{u}^m &= \underline{u}^{m-1} + \alpha_m \underline{p}^m \nonumber \\
+        \underline{r}^m &= \underline{r}^{m-1} - \alpha_m \underline{A} \underline{p}^m \nonumber \\
+        \text{end}\quad&
+      \end{align*}
+    \end{minipage}
+  } 
+\end{center}
+\end{frame}
+
+\begin{frame}\frametitle{The conjugate gradient algorithm}
+  \begin{itemize}
+    \item These are hybrid methods - eliminate along all Krylov vectors
+        and we get the exact solution (if done with exact arithmetics).
+    \item We use this as a way to obtain an approximative solution  
+      by introducing a stopping criterion.
+    \item Typical stopping criterion:
+      \[
+        \|r\| < tol
+      \]
+      for some tolerance $tol$.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{The conjugate gradient algorithm}
+  \begin{itemize}
+    \item An implementation may look like:
+      \lstinputlisting[basicstyle=\tiny]{cg.c}
+  \end{itemize}
 \end{frame}
 \end{document}
