@@ -1,6 +1,6 @@
 tmpdir := tmp
 
-FILES := p1.pdf s1.pdf p2.pdf s2.pdf p3.pdf s3.pdf p4.pdf p5.pdf
+FILES := p1.pdf s1.pdf p2.pdf s2.pdf p3.pdf s3.pdf p4.pdf p5.pdf p6.pdf
 
 all: $(FILES)
 
@@ -21,6 +21,9 @@ p4.pdf: | $(tmpdir)
 
 p5.pdf: | $(tmpdir)
 	make -C ex5
+
+p6.pdf: | $(tmpdir)
+	make -C ex6
 
 s1.pdf: | $(tmpdir)
 	make -C ex1
