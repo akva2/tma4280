@@ -24,7 +24,7 @@ void fst_(Real *v, int *n, Real *w, int *nn);
 void fstinv_(Real *v, int *n, Real *w, int *nn);
 
 
-main(int argc, char **argv )
+int main(int argc, char **argv )
 {
   Real *diag, **b, **bt, *z;
   Real pi, h, umax;
@@ -36,7 +36,7 @@ main(int argc, char **argv )
 
  if( argc < 2 ) {
     printf("need a problem size\n");
-	return;
+    return 1;
   }
 
   n  = atoi(argv[1]);
@@ -92,6 +92,8 @@ main(int argc, char **argv )
     }
   }
   printf (" umax = %e \n",umax);
+
+  return 0;
 }
 
 void transpose (Real **bt, Real **b, int m)
