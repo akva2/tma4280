@@ -1,7 +1,7 @@
 tmpdir := tmp
 
 FILES := intro.pdf single.pdf git.pdf multi_notes.pdf openmp_notes.pdf basic.pdf \
-  	 poisson.pdf poisson-fdm.pdf poisson-diag.pdf
+  	 poisson.pdf poisson-fdm.pdf poisson-diag.pdf mpiio_notes.pdf
 all: $(FILES)
 
 $(tmpdir):
@@ -33,6 +33,9 @@ poisson-fdm.pdf: | $(tmpdir)
 
 poisson-diag.pdf: | $(tmpdir)
 	make -C 08.poisson-diag
+
+mpiio_notes.pdf: | $(tmpdir)
+	make -C 09.mpi-io
 
 clean:
 	rm -rf tmp $(FILES)

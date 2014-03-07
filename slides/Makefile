@@ -1,7 +1,8 @@
 tmpdir := tmp
 
 FILES := curriculum.pdf trends.pdf thetool.pdf crash.pdf multi.pdf mpi.pdf \
-  	 kongull.pdf openmp.pdf summing.pdf poisson-slides.pdf poisson-solvers.pdf
+  	 kongull.pdf openmp.pdf summing.pdf poisson-slides.pdf poisson-solvers.pdf \
+	 mpiio_slides.pdf
 
 all: $(FILES)
 
@@ -40,6 +41,9 @@ poisson-slides.pdf: | $(tmpdir)
 
 poisson-solvers.pdf: | $(tmpdir)
 	make -C 10.solvers
+
+mpiio_slides.pdf: | $(tmpdir)
+	make -C 11.mpi-io
 
 clean:
 	rm -rf tmp $(FILES)
