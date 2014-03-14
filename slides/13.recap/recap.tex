@@ -1,0 +1,172 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{rotating}
+\usepackage{graphicx}
+\usepackage{multimedia}
+
+\useinnertheme[shadow=true]{rounded}
+\useoutertheme{shadow}
+\usecolortheme{orchid}
+\usecolortheme{whale}
+
+\mode<presentation>
+
+\newcommand{\dif}{\, \mathrm{d}}
+\newcommand{\diff}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\partdiff}[2]{\frac{\partial #1}{\partial #2}}
+
+
+\title{TMA4280 - Introduction to supercomputing}
+\subtitle{Recap of the solvers we have considered, timings}
+\author{Arne Morten Kvarving}
+\institute{NTNU and SINTEF ICT}
+\date{Spring 2014}
+
+\begin{document}
+
+\maketitle
+\begin{frame}\frametitle{We have considered}
+  \begin{itemize}
+    \item Direct solvers (LU, cholesky, banded, diagonalization)
+    \item Iterative solvers (CG, PCG, tensor-product operator evaluation, matrixfree).
+    \item A combined solver (for the B\'{e}nard-Marangoni problem).
+    \item All of these have been considered in serial, multi-threaded and hybrid (distributed)
+          environments.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Problem partitioning}
+  \begin{itemize}
+    \item We have seen two ways to partition a problem;
+      \begin{enumerate}
+        \item By partitioning the data structure (e.g. a matrix).
+        \item By partitioning in the problem's domain/geometry
+              (domain decomposition).
+      \end{enumerate}
+    \item Both of these are useful approaches, with their pros and cons.
+    \item This is more general than just the solution of PDEs.
+      \begin{itemize}
+        \item We are actually mostly doing linear algebra and a large class
+            of problems reduce themself to linear systems.
+        \item The ideas can be applied to other algorithms as well, e.g. sorting.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Don't parallelize trash}
+  \begin{itemize}
+    \item Even though parallel computations can speed up our programs, it
+      is not the cure for all your ails.
+    \item We should always use the best algorithm available, there is much more
+      to gain from reducing the problem complexity in $N$, than there is to simply
+      obtain a perfect linear gain from parallelization; For sufficiently large $N$
+        \[
+          N^3 \ll \frac{N^6}{p}
+        \]
+        for any realistic $p$. 
+     \item However, sometimes a less optimal algorithm can also be the better basis
+      of a parallel implementation, e.g.
+      \[
+        \frac{N^3}{p} \ll \frac{N^2}{\alpha p}
+      \]
+      for certain $(N,\alpha)$.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Speedups}
+  \begin{itemize}
+    \item We use a simple, linear network model; the time to send b bytes is modelled as
+      \[
+        T^{\text{comm}}(b) = \kappa + \gamma b,
+      \]
+      where $\kappa$ is the network latency and $\gamma$ the inverse network bandwidth.
+    \item For simplicity we consider a single Gauss-Jacobi iteration.
+    \item If we split the matrix by rows, assuming equal load on each MPI process, we get
+      \[
+        \quad T_P = \frac{T_1}{P}, \quad T_P^{\text{comm}} = \kappa + \gamma N^2
+      \]
+      or
+      \[
+        S_P = \frac{T_1}{T_P+T_P^{\text{comm}}} = \frac{P}{1+P\left(\kappa+\gamma 8N^2\right)}.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Speedups}
+  \begin{itemize}
+    \item If we apply domain decompositioning with strip domains, we get
+      \[
+        \quad T_P = \frac{T_1}{P}, \quad T_P^{\text{comm}} = 2\left(\kappa + \gamma N\right)
+      \]
+      or
+      \[
+        S_P = \frac{T_1}{T_P+T_P^{\text{comm}}} = \frac{P}{1+2P\left(\kappa+\gamma N\right)}.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Speedups}
+  \begin{itemize}
+    \item If we apply domain decompositioning with block domains, we get
+      \[
+        \quad T_P = \frac{T_1}{P}, \quad T_P^{\text{comm}} = 4\left(\kappa + \gamma \frac{8N}{\sqrt{P}}\right)
+      \]
+      or
+      \[
+        S_P = \frac{T_1}{T_P+T_P^{\text{comm}}} = \frac{P}{1+4P\left(\kappa+\gamma \frac{8N}{\sqrt{P}}\right)}.
+      \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Amdahl's law}
+  \begin{itemize}
+    \item Amdahl's law is a a very irritating fact, which is important to be aware of.
+    \item Assume that $B$ is the fraction of your program which is parallel.
+    \item Assume we use $N$ processors.
+    \item The maximum speedup possible is then
+      \[
+        S(N) = \frac{1}{1-B+\frac{B}{N}}.
+      \]
+    \item Example: Assume the $B=0.99$ - we then have a maximum speedup
+      \[
+        \lim_{N\rightarrow\infty} S(N) = \frac{1}{1-B} = \frac{1}{0.01} = 100.
+      \]
+    \item That is; if a single percent of your program is strictly serial, you can
+      never achieve a speedup higher than 100.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Two programming models - different challenges}
+  \begin{itemize}
+    \item Paraphrasing, we can say that when using a distributed programming
+          model, we apply a problem partitioning, and the rest of the work is 
+          dealing with the consequence of this partitioning. That is, the
+          quality of our implementation is goverened by
+          \begin{enumerate}
+            \item Our choice of problem partitioning.
+            \item Our choice of data structures.
+          \end{enumerate}
+          The challenges here typically involves 
+          \begin{enumerate}
+            \item minimizing amount of process interactions 
+            \item minimizing the amount of data we need to transfer.
+          \end{enumerate}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Two programming models - different challenges}
+  \begin{itemize}
+    \item With a shared memory model, this is different;
+          \begin{enumerate}
+            \item no explicit partitioning of the data.
+            \item the data structures are the same as in the serial code.
+          \end{enumerate}
+          The challenges here are rather
+          \begin{enumerate}
+            \item Concurrency (make sure two threads do not write to the same resources).
+            \item Minimizing thread interactions (avoid using locks).
+            \item Having enough work for each thread to ``drown'' the overhead.
+          \end{enumerate}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{Parallelizing a problem - important aspects}
+  \begin{itemize}
+    \item What is the problem size? (Do we need parallel computations?)
+    \item If so, why do we need parallel computations? (Memory? Flop?)
+    \item Are there serial components? (Amdahl)
+    \item Can this problem be put in a certain class? (Has this problem been solved before?)
+  \end{itemize}
+\end{frame}
+\end{document}

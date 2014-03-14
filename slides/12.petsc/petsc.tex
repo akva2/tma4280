@@ -1,0 +1,337 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{rotating}
+\usepackage{graphicx}
+\usepackage{multimedia}
+\usepackage{listings}
+
+\useinnertheme[shadow=true]{rounded}
+\useoutertheme{shadow}
+\usecolortheme{orchid}
+\usecolortheme{whale}
+
+\mode<presentation>
+
+\title{TMA4280 - Introduction to supercomputing}
+\subtitle{PETSc - The Portable Extensible Toolkit for Scientific Computing}
+\author{Arne Morten Kvarving}
+\institute{NTNU and SINTEF ICT}
+\date{Spring 2014}
+
+\begin{document}
+
+\maketitle
+\begin{frame}\frametitle{Linear algebra packages}
+  \begin{itemize}
+    \item Thus far: \emph{BLAS} and \emph{LAPACK} (dense problems).
+    \item There are also several libraries available for sparse linear algebra.
+    \item \emph{MUMPS} - MUltifrontal Massively Parallel sparse direct Solver
+    \item \emph{UMFPACK} - Unsymmetric MultiFrontal method
+    \item \emph{SuperLU} - sparse, direct (threaded/distributed but no hybrid) solver
+    \item \emph{HYPRE} - sparse, iterative linear solvers and preconditioners
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Linear algebra packages with extra bells and whistles}
+  A linear algebra solver is just one part of a scientific code. Several libraries
+  focus on the whole picture rather than just the linear solvers.
+  \begin{itemize}
+    \item \emph{Trilinos} - Solvers, finite element libraries, ++
+    \item \emph{PETSc} - The Portable Extensible Toolkit for Scientific Computing
+  \end{itemize}
+  These make use of the solver packages. You can use Trilinos through PETSc,
+  and probably the other way around. In the following: focus on PETSc.
+\end{frame}
+
+\begin{frame}\frametitle{PETSc}
+  \begin{itemize}
+    \item PETSc (Pet-see) is an open-source library written in C.
+    \item Object oriented, even though it is written in C.
+    \item Interfaces to Fortran, Python, Matlab.
+    \item Distributed, threaded (sort of) and, currently in progress, hybrid programming models.
+    \item Can make use of NVIDIA GPUs.
+    \item Sparse direct and iterative linear solvers.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Installing PETSc}
+  \begin{itemize}
+    \item On ubuntu you can install PETSc using
+        \[
+           \text{\$ sudo apt-get install libpetsc-dev}
+        \]
+      Currently this will get you version 3.1, which is rather old (3.4 is the latest).
+      We thus build it manually.
+    \item On Kongull it is available as a module, you simply do
+        \[
+          \text{\$ module load petsc}
+        \]
+        Note that both of these packages will be MPI-enabled no matter.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{PETSc anatomy}
+  \begin{itemize}
+    \item A PETSc install consists of two parts;
+        \begin{itemize}
+          \item The main library headers. This you usually point to using
+                the \emph{PETSC\_DIR} environment variable.
+          \item A build configuration. This you point to using the
+                \emph{PETSC\_ARCH} environment variable.
+        \end{itemize}
+     \item On ubuntu you have to set these manually. The default profiles can
+        be found by listing '/usr/lib/petsc/' (your PETSC\_DIR).
+     \item On Kongull it is set by the module definition.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Building PETSc}
+  \begin{itemize}
+    \item Building PETSc is a bit involved. E.g. my configuration command;
+    \lstinputlisting{petsc-build.sh}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Linking against PETSc}
+  \begin{itemize}
+    \item As PETSc is a big package, linking against it in your program is
+        not just a matter of adding '-lpetsc'.
+    \item Imperative to use helpers such as CMake for this.
+    \item PETSc changed to a CMake based build system in version 3.2. As
+        this makes our job much easier (explanation later), we focus on using
+        3.2+ in the following.
+    \item By default, there is no support for PETSc in CMake 2.8. However,
+        CMake is easy to extend.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Finding PETSc}
+  \begin{itemize}
+    \item We have previously seen the CMake mechanisms for finding a library;
+        \[
+          \text{FIND\_PACKAGE(Foo REQUIRED)}
+        \]
+     \item What this actually does, is execute a file called FindFoo.cmake.
+           FindFoo.cmake is just a file with cmake commands, which then set
+           certain variables we can use afterwards.
+     \item CMake allows us to write such files ourself. We will now write
+           one for finding PETSc.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Finding PETSc}
+  \lstinputlisting[basicstyle=\tiny]{cmake/Modules/FindPetsc.cmake}
+\end{frame}
+
+\begin{frame}\frametitle{Using our new rule}
+  \begin{itemize}
+    \item Before we can use our new rule, we have to tell CMake where to find
+        our FindPetsc.cmake file.
+        \lstinputlisting{modulepath.cmake}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{Finished CMakeLists.txt}
+  \lstinputlisting{usage.cmake}
+\end{frame}
+
+\begin{frame}\frametitle{PETSc conventions}
+  \begin{itemize}
+    \item Since PETSc is a large library, there is a need for conventions to
+        keep it organized.
+    \item PETSc methods and symbols have prefixes which relate to their category;
+      \begin{itemize}
+        \item Vec - Anything dealing with vectors.
+        \item Mat - Anything dealing with matrices.
+        \item KSP - Linear solvers (originally Krylov SubsPace methods).
+        \item PC - preconditioners.
+        \item IS, DM, AO - Data and grid management.
+        \item SNES - Nonlinear solvers.
+        \item TS - ODE solvers.
+      \end{itemize}
+      We will only consider Vec, Mat, KSP and PC.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{PETSc - vectors}
+  \begin{itemize}
+    \item In PETSc, a vector is stored in an opaque structure called a 'Vec'.
+    \item A vector can have several different \emph{types}. Types include
+      \begin{itemize}
+        \item seq  - Sequential
+        \item mpi  - MPI distributed vector
+        \item pthread - Threaded vector
+        \item cusp - CUDA (NVIDIA GPU) vector format
+      \end{itemize}
+    \item The type, and how it is implemented, is an \emph{implementation detail},
+      completely hidden from the user.
+    \item No direct data access - everything goes through methods. This allows
+      abstracting away complications such as the vector being stored in a distributed fashion.
+    \item Can do operations either using \emph{local} or \emph{global} indices.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{PETSc - matrices}
+  \begin{itemize}
+    \item In PETSc, a matrix is stored in an opaque structure called a 'Mat'.
+    \item A matrix can have several different \emph{types}. Types include
+      \begin{itemize}
+        \item seqaij  - Sequential, AIJ matrix
+        \item mpiaij  - MPI distributed, AIJ matrix
+        \item seqdense - Dense matrix
+        \item aijcusp - CUDA (NVIDIA GPU) AIJ matrix format
+      \end{itemize}
+  \end{itemize}
+  In the following we only consider \emph{seqaij} and \emph{mpiaij}.
+\end{frame}
+
+\begin{frame}\frametitle{PETSc - Poisson solver}
+  \begin{itemize}
+    \item The majority of our code will be initialization code.
+    \item While PETSc do offer tools for helping with finite difference methods,
+        we here do it in the general way.
+    \item We here only focus on the construction of the vector, the 
+        construction of the matrix and the solution of the linear system.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}\frametitle{PETSc - Vector setup}
+  \lstinputlisting{petsc-vector.c}
+\end{frame}
+
+\begin{frame}\frametitle{PETSc - Matrix setup}
+  \lstinputlisting[basicstyle=\tiny]{petsc-matrix.c}
+\end{frame}
+\begin{frame}\frametitle{PETSc - syncronization}
+  \lstinputlisting{petsc-sync.c}
+\end{frame}
+\begin{frame}\frametitle{PETSc - solver setup}
+  \lstinputlisting{petsc-solver.c}
+\end{frame}
+\begin{frame}\frametitle{PETSc - solve}
+  \lstinputlisting{petsc-solve.c}
+\end{frame}
+\begin{frame}\frametitle{PETSc - low performance}
+  \begin{itemize}
+    \item The solver performs rather bad, both in serial and parallel.
+    \item Several reasons for this;
+        \begin{enumerate}
+          \item We fill the vector element by element.
+          \item We fill the matrix element by element.
+          \item We have not declared the sparsity pattern of the matrix.
+          \item If parallel; all processes fill all elements.
+        \end{enumerate}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{PETSc - low performance}
+  \begin{itemize}
+    \item Improvement 1; fill all the vector elements belonging to a process
+          at the same time.
+          \lstinputlisting[basicstyle=\tiny,language=C]{petsc-smartvec.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{PETSc - low performance}
+  \begin{itemize}
+    \item Improvement 2; fill the matrix element by element. 
+    \item Not a big problem here though since we assign so few matrix elements.
+    \item For finite element codes, you should use MatSetValues().
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{PETSc - low performance}
+  \begin{itemize}
+    \item Improvement 3; lazy-declaring the sparsity pattern of the matrix 
+          before assembling.
+    \lstinputlisting[basicstyle=\small,language=C]{petsc-sparsity.c}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{PETSc - matrix format}
+  \[
+    \begin{bmatrix}
+         1 &  2 &  0 \vline &  0 &  3 &  0 \vline & 0 &  4 \\
+         0 &  5 &  6 \vline &  7 &  0 &  0 \vline &  8 &  0 \\
+         9 &  0 &  1 \vline & 11 &  0 &  0 \vline & 12 &  0 \\
+         \hline
+        13 &  0 &  1 \vline & 15 & 16 &  7 \vline  &  0 &  0 \\
+         0 & 18 &  0 \vline & 19 & 20 &  1 \vline &  0 &  0 \\
+         0 &  0 &  0 \vline & 22 & 23 &  0 \vline & 24 &  0 \\
+         \hline
+        25 & 26 &  2 \vline &  0 &  0 &  8 \vline & 29 &  0 \\
+        30 &  0 &  0 \vline & 31 & 32 &  3 \vline &  0 & 34
+    \end{bmatrix}
+  \]
+\end{frame}
+\begin{frame}\frametitle{PETSc - matrix format}
+  \begin{itemize}
+    \item The ``diagonal'' matrix on the first process is
+        \[
+          \begin{bmatrix}
+                1 & 2 & 0 \\
+                0 & 5 & 6 \\
+                9 & 0 & 1
+          \end{bmatrix}
+        \]
+    \item The ``off-diagonal'' matrix on the first process is
+        \[
+          \begin{bmatrix}
+            0  & 3 & 0 &  0 & 4 \\
+            7  & 0 & 0 &  8 & 0 \\
+            11 & 0 & 0 & 12 & 0
+          \end{bmatrix}
+        \]
+    \item The ``off-diagonal'' matrix on the second process is
+        \[
+          \begin{bmatrix}
+            13 &  0 & 1 &  0 & 0 \\
+             0 & 18 & 0 &  0 & 0 \\
+             0 &  0 & 0 & 24 & 0
+          \end{bmatrix}
+        \]
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{PETSc - low performance}
+  \begin{itemize}
+    \item Improvement 3b; fully declaring the sparsity pattern of the matrix 
+          before assembling.
+          \lstinputlisting[basicstyle=\tiny,language=C]{petsc-sparsity2.c}
+    \item With the full pattern established, we can pin it so the matrix
+          format will never change while adding values.
+    \item This allows for multi-threaded assembly of the matrix.
+    \item Does not work in hybrid mode.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{PETSc - low performance}
+  \begin{itemize}
+    \item Improvement 4; only fill a process' assigned rows.
+    \item We can use the functions \emph{VecGetOwnershipRange} and 
+          \emph{MatGetOwnershipRange} to get the global indices of
+          our assigned rows.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{CMake - out of tree builds}
+  \begin{itemize}
+    \item CMake supports out-of-tree-builds.
+    \item You can generate the buildsystem in a different folder than where
+          the CMakeLists.txt recides.
+    \item This is very useful as we can have several profiles available at
+          the same time.
+    \item Particularly useful with PETSc since the code is equivalent in serial
+          and parallel.
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{CMake - out of tree builds -example}
+  \begin{itemize}
+    \item We want to compile in serial, and in parallel (MPI) to compare.
+    \item We can simply do:
+        \lstinputlisting{oot.sh}
+  \end{itemize}
+\end{frame}
+\begin{frame}\frametitle{PETSc - command line parameters}
+  \begin{itemize}
+    \item PETSc has a set of built-in command line parameters that all
+        apps which use PETSc will respect (xxxSetFromOptions)
+    \item For instance, if we want to run our code with a jacobi preconditioner
+          and a GMRES solver we do
+          \lstinputlisting{params.sh}
+  \end{itemize}
+\end{frame}
+\end{document}
