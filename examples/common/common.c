@@ -529,6 +529,59 @@ void saveMatrix(const Matrix A, char* file)
   }
 }
 
+void saveMatrixMPI(const Matrix A, char* file)
+{
+  int rank, size, i, j;
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  MPI_Comm_size(MPI_COMM_WORLD,&size);
+
+  int sizes[2];
+  MPI_Topo_test(*A->as_vec->comm,&sizes[0]);
+  if (sizes[0] != MPI_CART) {
+    printf("Expected a cartesian communicator, no data written\n");
+    return;
+  }
+
+  int periods[2], coords[2];
+  MPI_Cart_get(*A->as_vec->comm, 2, sizes, periods, coords);
+
+  int* split1;
+  int* displ1;
+  int* split2;
+  int* displ2;
+  splitVector(A->glob_cols, sizes[0], &split1, &displ1);
+  splitVector(A->glob_rows, sizes[1], &split2, &displ2);
+
+  MPI_File f;
+  MPI_File_open(*A->as_vec->comm,file,MPI_MODE_WRONLY|MPI_MODE_CREATE,
+                MPI_INFO_NULL,&f);
+
+  MPI_Datatype filetype;
+  int gsizes[2], distribs[2], dargs[2];
+  gsizes[0] = A->glob_cols; gsizes[1] = A->glob_rows;
+  distribs[0] = MPI_DISTRIBUTE_BLOCK;
+  distribs[1] = MPI_DISTRIBUTE_BLOCK;
+  dargs[0] = dargs[1] = MPI_DISTRIBUTE_DFLT_DARG;
+  MPI_Datatype datatype;
+  MPI_Type_contiguous(13, MPI_CHAR, &datatype);
+  MPI_Type_commit(&datatype);
+  MPI_Type_create_darray(size,rank,2,gsizes,distribs,dargs,sizes,
+                         MPI_ORDER_FORTRAN,datatype,&filetype);
+  MPI_Type_commit(&filetype);
+  MPI_File_set_view(f,0,datatype,filetype,"native",MPI_INFO_NULL);
+
+  int startcoord_x = displ1[coords[0]];
+  int startcoord_y = displ2[coords[1]];
+  for (j=0;j<A->cols;++j) {
+    for (i=0;i<A->rows;++i) {
+      char num[20];
+      sprintf(num,"%e ",A->data[j][i]);
+      MPI_File_write(f,num,1,datatype,MPI_STATUS_IGNORE);
+    }
+  }
+  MPI_File_close(&f);
+}
+
 void collectVector(Vector u)
 {
 #ifdef HAVE_MPI
